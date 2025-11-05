@@ -42,8 +42,14 @@ export class BusPositionCalculator {
                     progress
                 );
                 if (position) {
+                    // Log pour confirmer que le tracé GeoJSON est utilisé
+                    if (Math.random() < 0.01) { // Log 1% du temps pour ne pas surcharger
+                        console.log(`✓ Bus suit le tracé GeoJSON de la route ${routeId}`);
+                    }
                     return position;
                 }
+            } else if (routeId && Math.random() < 0.01) {
+                console.log(`⚠️ Pas de tracé GeoJSON pour route ${routeId}, utilisation fallback linéaire`);
             }
         }
 
