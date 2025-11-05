@@ -45,6 +45,20 @@ export class DataManager {
             this.stops = stops;
             this.geoJson = geoJson;
 
+            // Vérifier que les fichiers critiques ont des données
+            const hasCriticalData = routes.length > 0 && trips.length > 0 && 
+                                   stopTimes.length > 0 && stops.length > 0;
+
+            if (!hasCriticalData) {
+                const missingFiles = [];
+                if (routes.length === 0) missingFiles.push('routes.txt');
+                if (trips.length === 0) missingFiles.push('trips.txt');
+                if (stopTimes.length === 0) missingFiles.push('stop_times.txt');
+                if (stops.length === 0) missingFiles.push('stops.txt');
+                
+                throw new Error(`Fichiers GTFS manquants ou vides: ${missingFiles.join(', ')}. Placez vos fichiers dans /public/data/gtfs/`);
+            }
+
             // Créer des index pour un accès rapide
             this.indexData();
 
@@ -58,6 +72,7 @@ export class DataManager {
             return true;
         } catch (error) {
             console.error('❌ Erreur lors du chargement des données:', error);
+            this.isLoaded = false;
             throw error;
         }
     }

@@ -54,11 +54,17 @@ export class BusPositionCalculator {
         const toLat = parseFloat(segment.toStopInfo.stop_lat);
         const toLon = parseFloat(segment.toStopInfo.stop_lon);
 
+        // Convertir les coordonnées en radians pour les calculs trigonométriques
+        const fromLatRad = this.toRad(fromLat);
+        const fromLonRad = this.toRad(fromLon);
+        const toLatRad = this.toRad(toLat);
+        const toLonRad = this.toRad(toLon);
+
         // Calcul de l'angle en degrés
-        const dLon = toLon - fromLon;
-        const y = Math.sin(dLon) * Math.cos(toLat);
-        const x = Math.cos(fromLat) * Math.sin(toLat) -
-                  Math.sin(fromLat) * Math.cos(toLat) * Math.cos(dLon);
+        const dLon = toLonRad - fromLonRad;
+        const y = Math.sin(dLon) * Math.cos(toLatRad);
+        const x = Math.cos(fromLatRad) * Math.sin(toLatRad) -
+                  Math.sin(fromLatRad) * Math.cos(toLatRad) * Math.cos(dLon);
         
         const bearing = Math.atan2(y, x);
         const degrees = (bearing * 180 / Math.PI + 360) % 360;
