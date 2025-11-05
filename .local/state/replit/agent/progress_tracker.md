@@ -25,5 +25,8 @@
 - Interface épurée avec icônes SVG
 - Lignes de bus visibles même si elles partagent le même segment
 - Style cohérent et professionnel
+- Application prête à recevoir les données GTFS de l'utilisateur
+
+⚠️ **Note importante**: L'application nécessite que l'utilisateur fournisse ses propres données GTFS et fichier map.geojson dans le répertoire `/public/data/`. Voir `/public/data/README.md` pour les instructions détaillées.
 
 Date de complétion : 05/11/2025
