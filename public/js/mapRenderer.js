@@ -32,8 +32,66 @@ export class MapRenderer {
     }
 
     /**
+     * Calcule un point décalé perpendiculairement à un segment de ligne
+     */
+    offsetPoint(lat1, lon1, lat2, lon2, offsetMeters, index, total) {
+        const earthRadius = 6371000;
+        
+        const lat1Rad = lat1 * Math.PI / 180;
+        const lon1Rad = lon1 * Math.PI / 180;
+        const lat2Rad = lat2 * Math.PI / 180;
+        const lon2Rad = lon2 * Math.PI / 180;
+        
+        const bearing = Math.atan2(
+            Math.sin(lon2Rad - lon1Rad) * Math.cos(lat2Rad),
+            Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+            Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(lon2Rad - lon1Rad)
+        );
+        
+        const perpBearing = bearing + Math.PI / 2;
+        
+        const offsetDistance = offsetMeters * (index - (total - 1) / 2);
+        const angularDistance = offsetDistance / earthRadius;
+        
+        const newLat = Math.asin(
+            Math.sin(lat1Rad) * Math.cos(angularDistance) +
+            Math.cos(lat1Rad) * Math.sin(angularDistance) * Math.cos(perpBearing)
+        );
+        
+        const newLon = lon1Rad + Math.atan2(
+            Math.sin(perpBearing) * Math.sin(angularDistance) * Math.cos(lat1Rad),
+            Math.cos(angularDistance) - Math.sin(lat1Rad) * Math.sin(newLat)
+        );
+        
+        return [newLat * 180 / Math.PI, newLon * 180 / Math.PI];
+    }
+
+    /**
+     * Crée une géométrie décalée pour une LineString
+     */
+    offsetLineString(coordinates, offsetMeters, index, total) {
+        const offsetCoords = [];
+        
+        for (let i = 0; i < coordinates.length; i++) {
+            const [lon, lat] = coordinates[i];
+            
+            let lon2, lat2;
+            if (i < coordinates.length - 1) {
+                [lon2, lat2] = coordinates[i + 1];
+            } else {
+                [lon2, lat2] = coordinates[i - 1];
+            }
+            
+            const [newLat, newLon] = this.offsetPoint(lat, lon, lat2, lon2, offsetMeters, index, total);
+            offsetCoords.push([newLon, newLat]);
+        }
+        
+        return offsetCoords;
+    }
+
+    /**
      * Affiche les routes GeoJSON avec rendu multi-couleurs
-     * Divise visuellement les routes quand plusieurs lignes partagent le même segment
+     * Décale visuellement les routes quand plusieurs lignes partagent le même segment
      */
     displayMultiColorRoutes(geoJsonData, dataManager, visibleRoutes) {
         if (!geoJsonData) {
@@ -41,26 +99,22 @@ export class MapRenderer {
             return;
         }
 
-        // Supprimer l'ancienne couche si elle existe
         if (this.routeLayer) {
             this.map.removeLayer(this.routeLayer);
         }
 
         this.routeLayer = L.layerGroup().addTo(this.map);
 
-        // Grouper les features par géométrie pour identifier les routes partagées
         const geometryMap = new Map();
 
         geoJsonData.features.forEach(feature => {
             if (feature.geometry && feature.geometry.type === 'LineString') {
                 const routeId = feature.properties?.route_id;
                 
-                // Filtrer selon les routes visibles
                 if (!visibleRoutes.has(routeId)) {
                     return;
                 }
 
-                // Créer une clé unique pour la géométrie
                 const geomKey = JSON.stringify(feature.geometry.coordinates);
                 
                 if (!geometryMap.has(geomKey)) {
@@ -70,44 +124,52 @@ export class MapRenderer {
             }
         });
 
-        // Afficher chaque groupe de routes
         geometryMap.forEach((features, geomKey) => {
             const numRoutes = features.length;
-            const baseWidth = 6; // Largeur de base pour une route
+            const baseWidth = 4;
+            const offsetMeters = 3;
 
             if (numRoutes === 1) {
-                // Une seule ligne, affichage normal
                 const feature = features[0];
                 const routeColor = feature.properties?.route_color || '#3388ff';
                 const layer = L.geoJSON(feature, {
                     style: {
                         color: routeColor,
                         weight: baseWidth,
-                        opacity: 0.8
+                        opacity: 0.85,
+                        lineCap: 'round',
+                        lineJoin: 'round'
                     }
                 });
                 this.addRoutePopup(layer, features, dataManager);
                 layer.addTo(this.routeLayer);
             } else {
-                // Plusieurs lignes partagent cette route - affichage multi-couleurs avec effet empilé
-                const totalWidth = baseWidth * 1.5; // Augmenter un peu pour mieux voir
-                const segmentWidth = totalWidth / numRoutes;
-
-                // Afficher chaque ligne avec une largeur proportionnelle et un léger décalage visuel
                 features.forEach((feature, index) => {
                     const routeColor = feature.properties?.route_color || '#3388ff';
                     
-                    // Utiliser dashArray pour créer un effet visuel de séparation
-                    const dashPattern = numRoutes > 1 ? [segmentWidth * 3, segmentWidth] : null;
+                    const offsetCoords = this.offsetLineString(
+                        feature.geometry.coordinates,
+                        offsetMeters,
+                        index,
+                        numRoutes
+                    );
                     
-                    const layer = L.geoJSON(feature, {
+                    const offsetFeature = {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'LineString',
+                            coordinates: offsetCoords
+                        },
+                        properties: feature.properties
+                    };
+                    
+                    const layer = L.geoJSON(offsetFeature, {
                         style: {
                             color: routeColor,
-                            weight: Math.max(segmentWidth, 3),
+                            weight: baseWidth,
                             opacity: 0.85,
                             lineCap: 'round',
-                            lineJoin: 'round',
-                            dashArray: index > 0 ? dashPattern : null  // Première ligne pleine, autres en dash
+                            lineJoin: 'round'
                         }
                     });
 
@@ -117,18 +179,16 @@ export class MapRenderer {
             }
         });
 
-        // Ajuster la vue pour afficher toutes les routes (uniquement au premier chargement)
         try {
             const bounds = this.routeLayer.getBounds();
             if (bounds && bounds.isValid()) {
                 this.map.fitBounds(bounds);
             }
         } catch (e) {
-            // Ignorer l'erreur si getBounds() n'est pas disponible (cas du layerGroup vide)
             console.log('✓ Routes affichées (zoom non ajusté)');
         }
 
-        console.log(`✓ ${geometryMap.size} segments de routes affichées avec multi-couleurs`);
+        console.log(`✓ ${geometryMap.size} segments de routes affichées (lignes décalées pour visibilité)`);
     }
 
     /**
@@ -279,7 +339,8 @@ export class MapRenderer {
     createBusPopupContent(bus, tripScheduler) {
         const route = bus.route;
         const routeShortName = route?.route_short_name || route?.route_id || '?';
-        const routeColor = route?.route_color ? `#${route.route_color}` : '#FFC107';
+        const routeColor = route?.route_color ? `#${route.route_color}` : '#3B82F6';
+        const textColor = route?.route_text_color ? `#${route.route_text_color}` : '#ffffff';
         
         const stopTimes = tripScheduler.dataManager.stopTimesByTrip[bus.tripId];
         const destination = tripScheduler.getTripDestination(stopTimes);
@@ -289,12 +350,14 @@ export class MapRenderer {
 
         return `
             <div class="bus-popup">
-                <h4 style="color: ${routeColor}; margin: 0 0 10px 0;">🚌 Ligne ${routeShortName}</h4>
-                <p style="margin: 5px 0;"><strong>Nom:</strong> ${lineName}</p>
-                <p style="margin: 5px 0;"><strong>Direction:</strong> ${destination}</p>
-                <p style="margin: 5px 0;"><strong>Prochain arrêt:</strong> ${nextStopName}</p>
-                ${nextStopETA ? `<p style="margin: 5px 0;"><strong>Arrivée dans:</strong> ${nextStopETA.formatted}</p>` : ''}
-                <p style="margin: 5px 0; font-size: 0.8em; color: #888;"><em>Mise à jour en temps réel</em></p>
+                <div style="background: ${routeColor}; color: ${textColor}; padding: 0.625rem 0.875rem; border-radius: 6px; margin-bottom: 0.75rem; font-weight: 600; text-align: center;">
+                    Ligne ${routeShortName}
+                </div>
+                <p style="margin: 0.5rem 0; font-size: 0.875rem;"><strong>Nom:</strong> ${lineName}</p>
+                <p style="margin: 0.5rem 0; font-size: 0.875rem;"><strong>Direction:</strong> ${destination}</p>
+                <p style="margin: 0.5rem 0; font-size: 0.875rem;"><strong>Prochain arrêt:</strong> ${nextStopName}</p>
+                ${nextStopETA ? `<p style="margin: 0.5rem 0; font-size: 0.875rem;"><strong>Arrivée:</strong> ${nextStopETA.formatted}</p>` : ''}
+                <p style="margin: 0.625rem 0 0 0; font-size: 0.75rem; color: #64748b;"><em>Mise à jour en temps réel</em></p>
             </div>
         `;
     }
