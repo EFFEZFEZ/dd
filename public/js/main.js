@@ -1,162 +1,258 @@
 /**
- * mapRenderer.js
- * Gère toutes les interactions avec Leaflet.
+ * main.js
+ * Point d'entrée principal de l'application
+ * Orchestre tous les modules et gère l'interface utilisateur
  */
 
-export class MapRenderer {
-    constructor(mapContainerId) {
-        this.map = null;
-        this.mapContainerId = mapContainerId;
-        this.busMarkers = new Map(); // Stocke les marqueurs par trip_id
-        this.markerLayer = new L.LayerGroup();
-        this.geoJsonLayer = null;
-        this.popupChangeCallback = () => {}; // Fonction pour notifier l'App
-    }
+import { DataManager } from './dataManager.js';
+import { TimeManager } from './timeManager.js';
+import { TripScheduler } from './tripScheduler.js';
+import { BusPositionCalculator } from './busPositionCalculator.js';
+import { MapRenderer } from './mapRenderer.js';
 
-    initializeMap() {
-        this.map = L.map(this.mapContainerId).setView([45.18, 0.72], 13); // Centré sur Périgueux
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(this.map);
+let dataManager;
+let timeManager;
+let tripScheduler;
+let busPositionCalculator;
+let mapRenderer;
+let updateInterval;
+let popupUpdateInterval;
+let visibleRoutes = new Set();
 
-        this.map.addLayer(this.markerLayer);
-    }
-
-    setPopupChangeListener(callback) {
-        this.popupChangeCallback = callback;
-    }
-
-    // ... (Fonctions utilitaires : createBusIcon, createPopupContent)
-
-    /**
-     * Crée l'icône de bus personnalisée.
-     */
-    createBusIcon(shortName) {
-        return L.divIcon({
-            className: 'bus-icon',
-            iconSize: [32, 32],
-            iconAnchor: [16, 16],
-            html: `<span>${shortName}</span>` // Optionnel : utiliser le shortName si l'icône est trop petite
-        });
-    }
-
-    /**
-     * Crée le contenu HTML du popup du bus.
-     */
-    createPopupContent(bus, tripScheduler, currentSeconds) {
-        const route = bus.route;
-        const stopInfo = tripScheduler.getNextStopInfo(bus.trip.trip_id, currentSeconds);
-
-        let nextStopHtml = 'N/A';
-        if (stopInfo) {
-            const timeDiff = stopInfo.nextDepartureTime - currentSeconds;
-            const minutes = Math.floor(timeDiff / 60);
-            nextStopHtml = `Prochain arrêt : <strong>${stopInfo.nextStopName}</strong> (dans ${minutes} min)`;
+async function initializeApp() {
+    dataManager = new DataManager();
+    
+    try {
+        await dataManager.loadAllData();
+        
+        mapRenderer = new MapRenderer('map');
+        mapRenderer.initializeMap();
+        
+        timeManager = new TimeManager();
+        tripScheduler = new TripScheduler(dataManager);
+        busPositionCalculator = new BusPositionCalculator(dataManager);
+        
+        initializeRouteFilter();
+        
+        if (dataManager.geoJsonData) {
+            mapRenderer.displayMultiColorRoutes(dataManager.geoJsonData, dataManager, visibleRoutes);
         }
-
-        return `
-            <div class="bus-popup">
-                <h4>Ligne ${route.route_short_name}</h4>
-                <p>Destination : <strong>${bus.trip.trip_headsign}</strong></p>
-                <p>${nextStopHtml}</p>
-            </div>
-        `;
-    }
-
-    /**
-     * Affiche les routes GeoJSON filtrées.
-     */
-    displayMultiColorRoutes(geoJson, dataManager, visibleRoutes) {
-        if (this.geoJsonLayer) {
-            this.map.removeLayer(this.geoJsonLayer);
-        }
-
-        this.geoJsonLayer = L.geoJSON(geoJson, {
-            filter: function(feature) {
-                // Filtrer les routes non visibles
-                return visibleRoutes.has(feature.properties.route_id);
-            },
-            style: function(feature) {
-                const routeId = feature.properties.route_id;
-                const route = dataManager.getRoute(routeId);
-                const color = route ? `#${route.route_color}` : '#3388ff';
-
-                return {
-                    color: color,
-                    weight: 4,
-                    opacity: 0.7
-                };
-            }
-        }).addTo(this.map);
-    }
-
-    /**
-     * Met à jour les marqueurs de bus sur la carte.
-     */
-    updateBusMarkers(busesWithPositions, tripScheduler, currentSeconds, openTripId) {
-        const activeTripIds = new Set();
-
-        busesWithPositions.forEach(bus => {
-            const tripId = bus.trip.trip_id;
-            activeTripIds.add(tripId);
-            let marker = this.busMarkers.get(tripId);
-
-            // Créer ou mettre à jour le marqueur
-            if (!marker) {
-                // Création du marqueur
-                marker = L.marker([bus.lat, bus.lon], {
-                    icon: this.createBusIcon(bus.route.route_short_name)
-                });
-
-                // Attacher les listeners de popup à la création pour suivre l'état global
-                marker.on('popupopen', () => this.popupChangeCallback(tripId));
-                marker.on('popupclose', () => this.popupChangeCallback(null));
-
-                marker.addTo(this.markerLayer);
-                this.busMarkers.set(tripId, marker);
-            } else {
-                // Mise à jour de la position
-                marker.setLatLng([bus.lat, bus.lon]);
-            }
-
-            // Mettre à jour le contenu du popup (important pour le temps réel)
-            const popupContent = this.createPopupContent(bus, tripScheduler, currentSeconds);
-            marker.bindPopup(popupContent, { 
-                className: 'bus-popup',
-                autoClose: false // Permet de garder le popup ouvert sans avoir à cliquer sur le marqueur
-            });
-
-            // Forcer la réouverture si cet ID est celui qui doit rester ouvert
-            if (openTripId === tripId) {
-                if (!marker.getPopup().isOpen()) {
-                    marker.openPopup();
-                }
-            }
-        });
-
-        // Supprimer les marqueurs des bus qui ne sont plus actifs
-        const markersToRemove = [];
-        this.busMarkers.forEach((marker, tripId) => {
-            if (!activeTripIds.has(tripId)) {
-                markersToRemove.push(marker);
-                this.busMarkers.delete(tripId);
-
-                // Si on retire le bus dont le popup était ouvert, on le notifie
-                if (tripId === openTripId) {
-                    this.popupChangeCallback(null);
-                }
-            }
-        });
-
-        markersToRemove.forEach(marker => {
-            this.markerLayer.removeLayer(marker);
-        });
-    }
-
-    /**
-     * Retourne le nombre de bus affichés
-     */
-    getBusCount() {
-        return this.busMarkers.size;
+        
+        setupEventListeners();
+        
+        document.getElementById('instructions').classList.remove('hidden');
+        updateDataStatus('Données chargées', 'loaded');
+        
+    } catch (error) {
+        console.error('Erreur lors de l\'initialisation:', error);
+        updateDataStatus('Erreur de chargement', 'error');
     }
 }
+
+function initializeRouteFilter() {
+    const routeCheckboxesContainer = document.getElementById('route-checkboxes');
+    routeCheckboxesContainer.innerHTML = '';
+    
+    visibleRoutes.clear();
+    dataManager.routes.forEach(route => {
+        visibleRoutes.add(route.route_id);
+        
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'route-checkbox-item';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `route-${route.route_id}`;
+        checkbox.checked = true;
+        checkbox.addEventListener('change', () => handleRouteFilterChange());
+        
+        const routeColor = route.route_color ? `#${route.route_color}` : '#3388ff';
+        const textColor = route.route_text_color ? `#${route.route_text_color}` : '#ffffff';
+        
+        const badge = document.createElement('div');
+        badge.className = 'route-badge';
+        badge.style.backgroundColor = routeColor;
+        badge.style.color = textColor;
+        badge.textContent = route.route_short_name || route.route_id;
+        
+        const label = document.createElement('span');
+        label.className = 'route-name';
+        label.textContent = route.route_long_name || route.route_short_name || route.route_id;
+        
+        itemDiv.appendChild(checkbox);
+        itemDiv.appendChild(badge);
+        itemDiv.appendChild(label);
+        routeCheckboxesContainer.appendChild(itemDiv);
+    });
+}
+
+function handleRouteFilterChange() {
+    visibleRoutes.clear();
+    
+    dataManager.routes.forEach(route => {
+        const checkbox = document.getElementById(`route-${route.route_id}`);
+        if (checkbox && checkbox.checked) {
+            visibleRoutes.add(route.route_id);
+        }
+    });
+    
+    if (dataManager.geoJsonData) {
+        mapRenderer.displayMultiColorRoutes(dataManager.geoJsonData, dataManager, visibleRoutes);
+    }
+    
+    updateData();
+}
+
+function setupEventListeners() {
+    document.getElementById('btn-play').addEventListener('click', () => {
+        timeManager.play();
+        startUpdateLoop();
+    });
+    
+    document.getElementById('btn-pause').addEventListener('click', () => {
+        timeManager.pause();
+        stopUpdateLoop();
+    });
+    
+    document.getElementById('btn-refresh').addEventListener('click', () => {
+        timeManager.reset();
+        updateData();
+    });
+    
+    document.getElementById('close-instructions').addEventListener('click', () => {
+        document.getElementById('instructions').classList.add('hidden');
+    });
+    
+    document.getElementById('btn-toggle-filter').addEventListener('click', () => {
+        document.getElementById('route-filter-panel').classList.toggle('hidden');
+    });
+    
+    document.getElementById('close-filter').addEventListener('click', () => {
+        document.getElementById('route-filter-panel').classList.add('hidden');
+    });
+    
+    document.getElementById('select-all-routes').addEventListener('click', () => {
+        dataManager.routes.forEach(route => {
+            const checkbox = document.getElementById(`route-${route.route_id}`);
+            if (checkbox) checkbox.checked = true;
+        });
+        handleRouteFilterChange();
+    });
+    
+    document.getElementById('deselect-all-routes').addEventListener('click', () => {
+        dataManager.routes.forEach(route => {
+            const checkbox = document.getElementById(`route-${route.route_id}`);
+            if (checkbox) checkbox.checked = false;
+        });
+        handleRouteFilterChange();
+    });
+    
+    timeManager.addListener(updateData);
+}
+
+function startUpdateLoop() {
+    if (!updateInterval) {
+        updateInterval = setInterval(updateData, 1000);
+    }
+    
+    if (!popupUpdateInterval) {
+        popupUpdateInterval = setInterval(() => {
+            const visibleBusIds = [];
+            Object.values(mapRenderer.busMarkers).forEach(markerData => {
+                if (markerData.marker.isPopupOpen()) {
+                    visibleBusIds.push(markerData.bus.tripId);
+                }
+            });
+            
+            if (visibleBusIds.length > 0) {
+                updateData();
+            }
+        }, 1000);
+    }
+}
+
+function stopUpdateLoop() {
+    if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+    }
+    
+    if (popupUpdateInterval) {
+        clearInterval(popupUpdateInterval);
+        popupUpdateInterval = null;
+    }
+}
+
+function updateData() {
+    const currentSeconds = timeManager.getCurrentSeconds();
+    updateClock(currentSeconds);
+    
+    const activeTrips = tripScheduler.getActiveTrips(currentSeconds);
+    
+    const busesWithPositions = activeTrips
+        .map(tripInfo => {
+            const position = busPositionCalculator.calculatePosition(tripInfo, currentSeconds);
+            if (position) {
+                return {
+                    tripId: tripInfo.tripId,
+                    route: tripInfo.route,
+                    position: position,
+                    segment: tripInfo.segment,
+                    currentSeconds: currentSeconds
+                };
+            }
+            return null;
+        })
+        .filter(bus => bus !== null)
+        .filter(bus => visibleRoutes.has(bus.route.route_id));
+    
+    mapRenderer.updateBusMarkers(busesWithPositions, tripScheduler, currentSeconds);
+    
+    const visibleBusCount = busesWithPositions.length;
+    const totalBusCount = activeTrips.length;
+    updateBusCount(visibleBusCount, totalBusCount);
+}
+
+function updateClock(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    document.getElementById('current-time').textContent = timeString;
+    
+    const now = new Date();
+    const dateString = now.toLocaleDateString('fr-FR', { 
+        weekday: 'short', 
+        day: 'numeric', 
+        month: 'short' 
+    });
+    document.getElementById('date-indicator').textContent = dateString;
+}
+
+function updateBusCount(visible, total) {
+    const busCountElement = document.getElementById('bus-count');
+    if (total === visible) {
+        busCountElement.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+            </svg>
+            ${visible} bus
+        `;
+    } else {
+        busCountElement.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="12" r="10"/>
+            </svg>
+            ${visible} / ${total} bus
+        `;
+    }
+}
+
+function updateDataStatus(message, status = '') {
+    const statusElement = document.getElementById('data-status');
+    statusElement.textContent = message;
+    statusElement.className = status;
+}
+
+initializeApp();
