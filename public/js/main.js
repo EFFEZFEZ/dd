@@ -350,28 +350,8 @@ function setupEventListeners() {
         }
     });
     
-    document.getElementById('btn-speed-1x').addEventListener('click', () => setSpeed(1));
-    document.getElementById('btn-speed-2x').addEventListener('click', () => setSpeed(2));
-    document.getElementById('btn-speed-5x').addEventListener('click', () => setSpeed(5));
-    document.getElementById('btn-speed-10x').addEventListener('click', () => setSpeed(10));
-    
     timeManager.addListener(updateData);
 }
-
-function setSpeed(multiplier) {
-    timeManager.setSpeed(multiplier);
-    
-    document.querySelectorAll('.btn-speed').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.getElementById(`btn-speed-${multiplier}x`).classList.add('active');
-    
-    if (timeManager.getIsSimulated()) {
-        const timeStr = timeManager.formatTime(timeManager.getCurrentSeconds());
-        showModeBanner(`Mode simulation x${multiplier} - affichage à ${timeStr}`);
-    }
-}
-
 
 function updateData(timeInfo) {
     const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();

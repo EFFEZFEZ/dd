@@ -181,34 +181,6 @@ header h1 {
     display: none;
 }
 
-/* Speed Controls */
-.speed-controls {
-    display: flex;
-    gap: 0.25rem;
-    background: var(--bg-secondary);
-    padding: 0.25rem;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-}
-
-.btn-speed {
-    padding: 0.375rem 0.75rem;
-    font-size: 0.8125rem;
-    min-width: 45px;
-    border: none;
-    background: transparent;
-}
-
-.btn-speed:hover {
-    background: var(--bg-main);
-}
-
-.btn-speed.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-
 /* Map */
 #map {
     flex: 1;
