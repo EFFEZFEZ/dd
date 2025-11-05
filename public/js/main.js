@@ -21,6 +21,10 @@ class GTFSVisualizationApp {
         
         // État de l'application
         this.isInitialized = false;
+        
+        // État du filtrage des lignes
+        this.visibleRoutes = new Set(); // Ensemble des route_id visibles
+        this.allRoutes = []; // Liste de toutes les routes disponibles
     }
 
     /**
@@ -67,9 +71,18 @@ class GTFSVisualizationApp {
         
         await this.dataManager.loadAllData();
         
-        // Afficher les routes GeoJSON
+        // Initialiser toutes les routes comme visibles
+        this.allRoutes = this.dataManager.routes;
+        this.allRoutes.forEach(route => {
+            this.visibleRoutes.add(route.route_id);
+        });
+        
+        // Créer le panneau de filtrage
+        this.createRouteFilterPanel();
+        
+        // Afficher les routes GeoJSON avec multi-couleurs
         if (this.dataManager.geoJson) {
-            this.mapRenderer.displayRoutes(this.dataManager.geoJson);
+            this.mapRenderer.displayMultiColorRoutes(this.dataManager.geoJson, this.dataManager, this.visibleRoutes);
         }
         
         this.updateStatus('Données chargées', true);
@@ -101,6 +114,133 @@ class GTFSVisualizationApp {
         document.getElementById('close-instructions').addEventListener('click', () => {
             this.hideInstructions();
         });
+
+        // Bouton toggle panneau de filtrage
+        document.getElementById('btn-toggle-filter').addEventListener('click', () => {
+            this.toggleFilterPanel();
+        });
+
+        // Bouton fermer le panneau de filtrage
+        document.getElementById('close-filter').addEventListener('click', () => {
+            this.toggleFilterPanel();
+        });
+
+        // Boutons sélectionner toutes/aucune
+        document.getElementById('select-all-routes').addEventListener('click', () => {
+            this.selectAllRoutes(true);
+        });
+
+        document.getElementById('deselect-all-routes').addEventListener('click', () => {
+            this.selectAllRoutes(false);
+        });
+    }
+
+    /**
+     * Toggle le panneau de filtrage des lignes
+     */
+    toggleFilterPanel() {
+        const panel = document.getElementById('route-filter-panel');
+        panel.classList.toggle('hidden');
+    }
+
+    /**
+     * Crée le panneau de filtrage des lignes
+     */
+    createRouteFilterPanel() {
+        const container = document.getElementById('route-checkboxes');
+        container.innerHTML = '';
+
+        // Trier les routes par route_short_name
+        const sortedRoutes = [...this.allRoutes].sort((a, b) => {
+            const nameA = a.route_short_name || a.route_id;
+            const nameB = b.route_short_name || b.route_id;
+            return nameA.localeCompare(nameB);
+        });
+
+        sortedRoutes.forEach(route => {
+            const routeId = route.route_id;
+            const routeShortName = route.route_short_name || route.route_id;
+            const routeLongName = route.route_long_name || '';
+            const routeColor = route.route_color ? `#${route.route_color}` : '#3388ff';
+            const textColor = route.route_text_color ? `#${route.route_text_color}` : '#ffffff';
+
+            const item = document.createElement('div');
+            item.className = 'route-checkbox-item';
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `route-${routeId}`;
+            checkbox.checked = this.visibleRoutes.has(routeId);
+            checkbox.addEventListener('change', (e) => {
+                this.onRouteFilterChange(routeId, e.target.checked);
+            });
+
+            const badge = document.createElement('span');
+            badge.className = 'route-badge';
+            badge.style.backgroundColor = routeColor;
+            badge.style.color = textColor;
+            badge.textContent = routeShortName;
+
+            const name = document.createElement('span');
+            name.className = 'route-name';
+            name.textContent = routeLongName;
+
+            item.appendChild(checkbox);
+            item.appendChild(badge);
+            item.appendChild(name);
+
+            // Cliquer sur l'item toggle le checkbox
+            item.addEventListener('click', (e) => {
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+
+            container.appendChild(item);
+        });
+    }
+
+    /**
+     * Gère le changement de filtre de route
+     */
+    onRouteFilterChange(routeId, isVisible) {
+        if (isVisible) {
+            this.visibleRoutes.add(routeId);
+        } else {
+            this.visibleRoutes.delete(routeId);
+        }
+
+        // Mettre à jour l'affichage des routes avec multi-couleurs
+        if (this.dataManager.geoJson) {
+            this.mapRenderer.displayMultiColorRoutes(this.dataManager.geoJson, this.dataManager, this.visibleRoutes);
+        }
+
+        // Mettre à jour l'affichage des bus
+        this.updateBusDisplay();
+    }
+
+    /**
+     * Sélectionne toutes les routes ou aucune
+     */
+    selectAllRoutes(selectAll) {
+        this.allRoutes.forEach(route => {
+            const checkbox = document.getElementById(`route-${route.route_id}`);
+            if (checkbox) {
+                checkbox.checked = selectAll;
+                if (selectAll) {
+                    this.visibleRoutes.add(route.route_id);
+                } else {
+                    this.visibleRoutes.delete(route.route_id);
+                }
+            }
+        });
+
+        // Mettre à jour l'affichage
+        if (this.dataManager.geoJson) {
+            this.mapRenderer.displayMultiColorRoutes(this.dataManager.geoJson, this.dataManager, this.visibleRoutes);
+        }
+        this.updateBusDisplay();
     }
 
     /**
@@ -132,15 +272,21 @@ class GTFSVisualizationApp {
         // Récupérer les bus actifs
         const activeBuses = this.tripScheduler.getActiveBuses(currentSeconds);
         
-        // Calculer les positions
-        const busesWithPositions = this.positionCalculator.calculateAllPositions(activeBuses);
+        // Filtrer les bus selon les routes visibles
+        const filteredBuses = activeBuses.filter(bus => {
+            return this.visibleRoutes.has(bus.route?.route_id);
+        });
         
-        // Mettre à jour la carte
-        this.mapRenderer.updateBusMarkers(busesWithPositions, this.tripScheduler);
+        // Calculer les positions
+        const busesWithPositions = this.positionCalculator.calculateAllPositions(filteredBuses);
+        
+        // Mettre à jour la carte avec mise à jour en temps réel des popups
+        this.mapRenderer.updateBusMarkers(busesWithPositions, this.tripScheduler, currentSeconds);
         
         // Mettre à jour le compteur
         const busCount = this.mapRenderer.getBusCount();
-        document.getElementById('bus-count').textContent = `${busCount} bus en circulation`;
+        const totalBuses = activeBuses.length;
+        document.getElementById('bus-count').textContent = `${busCount}/${totalBuses} bus en circulation`;
     }
 
     /**

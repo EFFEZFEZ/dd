@@ -37,11 +37,27 @@
                 <button id="btn-play" class="btn btn-primary">▶️ Démarrer</button>
                 <button id="btn-pause" class="btn">⏸️ Pause</button>
                 <button id="btn-refresh" class="btn">🔄 Actualiser</button>
+                <button id="btn-toggle-filter" class="btn">🎯 Filtrer les lignes</button>
             </div>
 
             <div id="status-info">
                 <span id="bus-count">0 bus en circulation</span>
                 <span id="data-status">En attente des données...</span>
+            </div>
+        </div>
+
+        <!-- Route Filter Panel -->
+        <div id="route-filter-panel" class="hidden">
+            <div class="filter-header">
+                <h3>🎯 Filtrer les lignes</h3>
+                <button id="close-filter" class="btn-close">✕</button>
+            </div>
+            <div class="filter-actions">
+                <button id="select-all-routes" class="btn-small">✓ Toutes</button>
+                <button id="deselect-all-routes" class="btn-small">✗ Aucune</button>
+            </div>
+            <div id="route-checkboxes" class="route-list">
+                <!-- Les checkboxes seront ajoutées dynamiquement ici -->
             </div>
         </div>
 

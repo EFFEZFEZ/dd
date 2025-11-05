@@ -32,9 +32,10 @@ export class MapRenderer {
     }
 
     /**
-     * Affiche les routes GeoJSON sur la carte
+     * Affiche les routes GeoJSON avec rendu multi-couleurs
+     * Divise visuellement les routes quand plusieurs lignes partagent le même segment
      */
-    displayRoutes(geoJsonData) {
+    displayMultiColorRoutes(geoJsonData, dataManager, visibleRoutes) {
         if (!geoJsonData) {
             console.warn('Aucune donnée GeoJSON à afficher');
             return;
@@ -45,56 +46,173 @@ export class MapRenderer {
             this.map.removeLayer(this.routeLayer);
         }
 
-        // Créer la nouvelle couche GeoJSON
+        this.routeLayer = L.layerGroup().addTo(this.map);
+
+        // Grouper les features par géométrie pour identifier les routes partagées
+        const geometryMap = new Map();
+
+        geoJsonData.features.forEach(feature => {
+            if (feature.geometry && feature.geometry.type === 'LineString') {
+                const routeId = feature.properties?.route_id;
+                
+                // Filtrer selon les routes visibles
+                if (!visibleRoutes.has(routeId)) {
+                    return;
+                }
+
+                // Créer une clé unique pour la géométrie
+                const geomKey = JSON.stringify(feature.geometry.coordinates);
+                
+                if (!geometryMap.has(geomKey)) {
+                    geometryMap.set(geomKey, []);
+                }
+                geometryMap.get(geomKey).push(feature);
+            }
+        });
+
+        // Afficher chaque groupe de routes
+        geometryMap.forEach((features, geomKey) => {
+            const numRoutes = features.length;
+            const baseWidth = 6; // Largeur de base pour une route
+
+            if (numRoutes === 1) {
+                // Une seule ligne, affichage normal
+                const feature = features[0];
+                const routeColor = feature.properties?.route_color || '#3388ff';
+                const layer = L.geoJSON(feature, {
+                    style: {
+                        color: routeColor,
+                        weight: baseWidth,
+                        opacity: 0.8
+                    }
+                });
+                this.addRoutePopup(layer, features, dataManager);
+                layer.addTo(this.routeLayer);
+            } else {
+                // Plusieurs lignes partagent cette route - affichage multi-couleurs
+                const totalWidth = baseWidth;
+                const segmentWidth = totalWidth / numRoutes;
+
+                features.forEach((feature, index) => {
+                    const routeColor = feature.properties?.route_color || '#3388ff';
+                    const offset = (index - (numRoutes - 1) / 2) * segmentWidth * 1.2;
+
+                    const layer = L.geoJSON(feature, {
+                        style: {
+                            color: routeColor,
+                            weight: Math.max(segmentWidth, 1.5),
+                            opacity: 0.85,
+                            offset: offset
+                        }
+                    });
+
+                    // Appliquer l'offset manuellement avec polylineOffset si disponible
+                    if (L.PolylineOffset) {
+                        layer.eachLayer(sublayer => {
+                            if (sublayer instanceof L.Polyline) {
+                                const offsetPolyline = new L.PolylineOffset(sublayer.getLatLngs(), {
+                                    color: routeColor,
+                                    weight: Math.max(segmentWidth, 1.5),
+                                    opacity: 0.85,
+                                    offset: offset
+                                }).addTo(this.routeLayer);
+                                
+                                this.addRoutePopup(offsetPolyline, [feature], dataManager);
+                            }
+                        });
+                    } else {
+                        // Fallback sans offset
+                        layer.addTo(this.routeLayer);
+                        this.addRoutePopup(layer, [feature], dataManager);
+                    }
+                });
+            }
+        });
+
+        // Ajuster la vue pour afficher toutes les routes
+        const bounds = this.routeLayer.getBounds();
+        if (bounds && bounds.isValid()) {
+            this.map.fitBounds(bounds);
+        }
+
+        console.log(`✓ ${geometryMap.size} segments de routes affichées avec multi-couleurs`);
+    }
+
+    /**
+     * Ajoute un popup aux routes
+     */
+    addRoutePopup(layer, features, dataManager) {
+        layer.eachLayer(sublayer => {
+            if (features.length === 1) {
+                const props = features[0].properties;
+                const routeId = props?.route_id;
+                const route = dataManager.getRoute(routeId);
+                const routeColor = route?.route_color ? `#${route.route_color}` : props?.route_color || '#3388ff';
+                const textColor = route?.route_text_color ? `#${route.route_text_color}` : '#ffffff';
+                const routeName = route?.route_short_name || props?.route_short_name || props?.name || 'Route';
+                const routeLongName = route?.route_long_name || props?.route_long_name || '';
+                
+                const popupContent = `
+                    <div class="route-popup">
+                        <div style="background-color: ${routeColor}; color: ${textColor}; padding: 8px; border-radius: 4px; margin-bottom: 8px; text-align: center; font-weight: bold; font-size: 1.1em;">
+                            Ligne ${routeName}
+                        </div>
+                        ${routeLongName ? `<p style="margin: 5px 0;"><strong>${routeLongName}</strong></p>` : ''}
+                    </div>
+                `;
+                sublayer.bindPopup(popupContent);
+            } else {
+                // Plusieurs lignes - afficher toutes dans le popup
+                let popupContent = '<div class="route-popup"><h4>Lignes sur ce segment:</h4>';
+                features.forEach(feature => {
+                    const props = feature.properties;
+                    const routeId = props?.route_id;
+                    const route = dataManager.getRoute(routeId);
+                    const routeColor = route?.route_color ? `#${route.route_color}` : '#3388ff';
+                    const textColor = route?.route_text_color ? `#${route.route_text_color}` : '#ffffff';
+                    const routeName = route?.route_short_name || props?.route_short_name || 'Route';
+                    
+                    popupContent += `
+                        <div style="background-color: ${routeColor}; color: ${textColor}; padding: 4px 8px; border-radius: 3px; margin: 4px 0; text-align: center; font-weight: bold;">
+                            Ligne ${routeName}
+                        </div>
+                    `;
+                });
+                popupContent += '</div>';
+                sublayer.bindPopup(popupContent);
+            }
+        });
+    }
+
+    /**
+     * Affiche les routes GeoJSON sur la carte (ancienne méthode, gardée pour compatibilité)
+     */
+    displayRoutes(geoJsonData) {
+        console.warn('displayRoutes() est déprécié, utilisez displayMultiColorRoutes() à la place');
+        if (!geoJsonData) return;
+
+        if (this.routeLayer) {
+            this.map.removeLayer(this.routeLayer);
+        }
+
         this.routeLayer = L.geoJSON(geoJsonData, {
             filter: (feature) => {
-                // N'afficher que les LineString (tracés des routes)
                 return feature.geometry && feature.geometry.type === 'LineString';
             },
             style: (feature) => {
-                // Utiliser la couleur de la route depuis les propriétés
                 const routeColor = feature.properties?.route_color || '#3388ff';
                 return {
                     color: routeColor,
                     weight: 3,
                     opacity: 0.7
                 };
-            },
-            onEachFeature: (feature, layer) => {
-                // Ajouter un popup avec les informations de la route
-                if (feature.properties) {
-                    const props = feature.properties;
-                    const routeColor = props.route_color || '#3388ff';
-                    const textColor = props.route_text_color || '#000000';
-                    const routeName = props.route_short_name || props.name || 'Route';
-                    const routeLongName = props.route_long_name || '';
-                    
-                    const popupContent = `
-                        <div class="route-popup">
-                            <div style="background-color: ${routeColor}; color: ${textColor}; padding: 8px; border-radius: 4px; margin-bottom: 8px; text-align: center; font-weight: bold; font-size: 1.1em;">
-                                Ligne ${routeName}
-                            </div>
-                            ${routeLongName ? `<p style="margin: 5px 0;"><strong>${routeLongName}</strong></p>` : ''}
-                            ${props.route_id ? `<p style="margin: 5px 0; font-size: 0.85em; color: #666;"><strong>ID:</strong> ${props.route_id}</p>` : ''}
-                        </div>
-                    `;
-                    layer.bindPopup(popupContent);
-                }
-
-                // Ajouter l'interaction pour surligner la route
-                layer.on('click', () => {
-                    this.highlightRoute(layer);
-                });
             }
         }).addTo(this.map);
 
-        // Ajuster la vue pour afficher toutes les routes
         const bounds = this.routeLayer.getBounds();
         if (bounds.isValid()) {
             this.map.fitBounds(bounds);
         }
-
-        console.log('✓ Routes GeoJSON affichées');
     }
 
     /**
@@ -124,9 +242,9 @@ export class MapRenderer {
     }
 
     /**
-     * Met à jour l'affichage des bus sur la carte
+     * Met à jour l'affichage des bus sur la carte avec mise à jour temps réel des popups
      */
-    updateBusMarkers(busesWithPositions, tripScheduler) {
+    updateBusMarkers(busesWithPositions, tripScheduler, currentSeconds) {
         const currentBusIds = new Set();
 
         busesWithPositions.forEach(bus => {
@@ -138,21 +256,54 @@ export class MapRenderer {
             // Créer ou mettre à jour le marqueur
             if (this.busMarkers[busId]) {
                 // Mettre à jour la position existante avec animation fluide
-                this.busMarkers[busId].setLatLng([lat, lon]);
+                this.busMarkers[busId].marker.setLatLng([lat, lon]);
+                
+                // Mettre à jour le popup en temps réel si ouvert
+                if (this.busMarkers[busId].marker.isPopupOpen()) {
+                    const newPopupContent = this.createBusPopupContent(bus, tripScheduler);
+                    this.busMarkers[busId].marker.getPopup().setContent(newPopupContent);
+                }
             } else {
                 // Créer un nouveau marqueur
-                this.busMarkers[busId] = this.createBusMarker(bus, tripScheduler);
-                this.busMarkers[busId].addTo(this.map);
+                const markerData = this.createBusMarker(bus, tripScheduler);
+                this.busMarkers[busId] = markerData;
+                markerData.marker.addTo(this.map);
             }
         });
 
         // Supprimer les marqueurs des bus qui ne sont plus actifs
         Object.keys(this.busMarkers).forEach(busId => {
             if (!currentBusIds.has(busId)) {
-                this.map.removeLayer(this.busMarkers[busId]);
+                this.map.removeLayer(this.busMarkers[busId].marker);
                 delete this.busMarkers[busId];
             }
         });
+    }
+
+    /**
+     * Crée le contenu HTML du popup pour un bus
+     */
+    createBusPopupContent(bus, tripScheduler) {
+        const route = bus.route;
+        const routeShortName = route?.route_short_name || route?.route_id || '?';
+        const routeColor = route?.route_color ? `#${route.route_color}` : '#FFC107';
+        
+        const stopTimes = tripScheduler.dataManager.stopTimesByTrip[bus.tripId];
+        const destination = tripScheduler.getTripDestination(stopTimes);
+        const nextStopName = bus.segment?.toStopInfo?.stop_name || 'Inconnu';
+        const nextStopETA = tripScheduler.getNextStopETA(bus.segment, bus.currentSeconds);
+        const lineName = route?.route_long_name || route?.route_short_name || 'Ligne inconnue';
+
+        return `
+            <div class="bus-popup">
+                <h4 style="color: ${routeColor}; margin: 0 0 10px 0;">🚌 Ligne ${routeShortName}</h4>
+                <p style="margin: 5px 0;"><strong>Nom:</strong> ${lineName}</p>
+                <p style="margin: 5px 0;"><strong>Direction:</strong> ${destination}</p>
+                <p style="margin: 5px 0;"><strong>Prochain arrêt:</strong> ${nextStopName}</p>
+                ${nextStopETA ? `<p style="margin: 5px 0;"><strong>Arrivée dans:</strong> ${nextStopETA.formatted}</p>` : ''}
+                <p style="margin: 5px 0; font-size: 0.8em; color: #888;"><em>Mise à jour en temps réel</em></p>
+            </div>
+        `;
     }
 
     /**
@@ -174,28 +325,15 @@ export class MapRenderer {
 
         const marker = L.marker([lat, lon], { icon });
 
-        // Récupérer les informations pour le popup
-        const stopTimes = tripScheduler.dataManager.stopTimesByTrip[bus.tripId];
-        const destination = tripScheduler.getTripDestination(stopTimes);
-        const nextStopName = bus.segment?.toStopInfo?.stop_name || 'Inconnu';
-        const nextStopETA = tripScheduler.getNextStopETA(bus.segment, bus.currentSeconds);
-        
-        // Nom de la ligne
-        const lineName = route?.route_long_name || route?.route_short_name || 'Ligne inconnue';
-
-        const popupContent = `
-            <div class="bus-popup">
-                <h4 style="color: ${routeColor}; margin: 0 0 10px 0;">🚌 Ligne ${routeShortName}</h4>
-                <p style="margin: 5px 0;"><strong>Nom:</strong> ${lineName}</p>
-                <p style="margin: 5px 0;"><strong>Direction:</strong> ${destination}</p>
-                <p style="margin: 5px 0;"><strong>Prochain arrêt:</strong> ${nextStopName}</p>
-                ${nextStopETA ? `<p style="margin: 5px 0;"><strong>Arrivée dans:</strong> ${nextStopETA.formatted}</p>` : ''}
-            </div>
-        `;
-
+        // Créer le contenu du popup
+        const popupContent = this.createBusPopupContent(bus, tripScheduler);
         marker.bindPopup(popupContent);
 
-        return marker;
+        // Retourner le marqueur avec les données du bus pour mise à jour temps réel
+        return {
+            marker: marker,
+            bus: bus
+        };
     }
 
     /**
@@ -220,8 +358,8 @@ export class MapRenderer {
      * Nettoie tous les marqueurs
      */
     clearAllMarkers() {
-        Object.values(this.busMarkers).forEach(marker => {
-            this.map.removeLayer(marker);
+        Object.values(this.busMarkers).forEach(markerData => {
+            this.map.removeLayer(markerData.marker);
         });
         this.busMarkers = {};
     }
