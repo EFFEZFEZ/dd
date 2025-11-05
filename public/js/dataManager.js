@@ -249,4 +249,77 @@ export class DataManager {
     getRoute(routeId) {
         return this.routesById[routeId];
     }
+
+    /**
+     * Récupère le tracé GeoJSON d'une route par son route_id
+     */
+    getRouteGeometry(routeId) {
+        if (!this.geoJson || !this.geoJson.features) {
+            return null;
+        }
+
+        // Chercher le feature GeoJSON correspondant à cette route
+        const feature = this.geoJson.features.find(f => 
+            f.properties && (
+                f.properties.route_id === routeId ||
+                f.properties.route_id === String(routeId) ||
+                f.properties.name === routeId
+            )
+        );
+
+        if (feature && feature.geometry && feature.geometry.type === 'LineString') {
+            return feature.geometry.coordinates;
+        }
+
+        return null;
+    }
+
+    /**
+     * Trouve le point le plus proche sur un tracé GeoJSON
+     */
+    findNearestPointOnRoute(coordinates, targetLat, targetLon) {
+        if (!coordinates || coordinates.length === 0) {
+            return null;
+        }
+
+        let minDistance = Infinity;
+        let nearestIndex = 0;
+
+        coordinates.forEach((coord, index) => {
+            const [lon, lat] = coord;
+            const distance = this.calculateDistance(targetLat, targetLon, lat, lon);
+            
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestIndex = index;
+            }
+        });
+
+        return nearestIndex;
+    }
+
+    /**
+     * Calcule la distance entre deux points géographiques (formule de Haversine)
+     */
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Rayon de la Terre en km
+        const dLat = this.toRad(lat2 - lat1);
+        const dLon = this.toRad(lon2 - lon1);
+        
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
+        
+        return distance;
+    }
+
+    /**
+     * Convertit des degrés en radians
+     */
+    toRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
 }
