@@ -129,6 +129,9 @@ L'application attend les fichiers GTFS standards:
 - 🛣️ Interpolation intelligente le long des routes réelles
 - 🔄 Fallback automatique vers interpolation linéaire si pas de tracé disponible
 - ⚡ Performances optimisées pour flottes de taille moyenne
+- 🎨 **Chaque ligne affiche sa propre couleur** au lieu du bleu par défaut
+- 🏷️ Popups améliorés avec badge coloré de la ligne
+- 🎯 Filtrage intelligent pour n'afficher que les tracés des routes (LineString)
 
 ## Prochaines Améliorations Possibles
 

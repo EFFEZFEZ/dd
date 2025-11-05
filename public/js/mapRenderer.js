@@ -47,9 +47,15 @@ export class MapRenderer {
 
         // Créer la nouvelle couche GeoJSON
         this.routeLayer = L.geoJSON(geoJsonData, {
+            filter: (feature) => {
+                // N'afficher que les LineString (tracés des routes)
+                return feature.geometry && feature.geometry.type === 'LineString';
+            },
             style: (feature) => {
+                // Utiliser la couleur de la route depuis les propriétés
+                const routeColor = feature.properties?.route_color || '#3388ff';
                 return {
-                    color: feature.properties?.color || '#3388ff',
+                    color: routeColor,
                     weight: 3,
                     opacity: 0.7
                 };
@@ -58,11 +64,18 @@ export class MapRenderer {
                 // Ajouter un popup avec les informations de la route
                 if (feature.properties) {
                     const props = feature.properties;
+                    const routeColor = props.route_color || '#3388ff';
+                    const textColor = props.route_text_color || '#000000';
+                    const routeName = props.route_short_name || props.name || 'Route';
+                    const routeLongName = props.route_long_name || '';
+                    
                     const popupContent = `
                         <div class="route-popup">
-                            <h4>${props.name || 'Route'}</h4>
-                            ${props.route_id ? `<p><strong>ID:</strong> ${props.route_id}</p>` : ''}
-                            ${props.description ? `<p>${props.description}</p>` : ''}
+                            <div style="background-color: ${routeColor}; color: ${textColor}; padding: 8px; border-radius: 4px; margin-bottom: 8px; text-align: center; font-weight: bold; font-size: 1.1em;">
+                                Ligne ${routeName}
+                            </div>
+                            ${routeLongName ? `<p style="margin: 5px 0;"><strong>${routeLongName}</strong></p>` : ''}
+                            ${props.route_id ? `<p style="margin: 5px 0; font-size: 0.85em; color: #666;"><strong>ID:</strong> ${props.route_id}</p>` : ''}
                         </div>
                     `;
                     layer.bindPopup(popupContent);
@@ -88,8 +101,13 @@ export class MapRenderer {
      * Surligne une route sélectionnée
      */
     highlightRoute(layer) {
+        // Vérifier que le layer a une méthode setStyle
+        if (!layer || typeof layer.setStyle !== 'function') {
+            return;
+        }
+
         // Réinitialiser la route précédemment sélectionnée
-        if (this.selectedRoute) {
+        if (this.selectedRoute && typeof this.selectedRoute.setStyle === 'function') {
             this.selectedRoute.setStyle({
                 weight: 3,
                 opacity: 0.7
