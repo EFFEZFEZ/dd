@@ -11,8 +11,8 @@ export class MapRenderer {
         this.busMarkers = {};
         this.routeLayer = null;
         this.selectedRoute = null;
-        this.centerCoordinates = [48.8566, 2.3522]; // Paris par défaut
-        this.zoomLevel = 12;
+        this.centerCoordinates = [45.1833, 0.7167]; // Périgueux
+        this.zoomLevel = 13;
     }
 
     /**
