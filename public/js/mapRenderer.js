@@ -89,50 +89,43 @@ export class MapRenderer {
                 this.addRoutePopup(layer, features, dataManager);
                 layer.addTo(this.routeLayer);
             } else {
-                // Plusieurs lignes partagent cette route - affichage multi-couleurs
-                const totalWidth = baseWidth;
+                // Plusieurs lignes partagent cette route - affichage multi-couleurs avec effet empilé
+                const totalWidth = baseWidth * 1.5; // Augmenter un peu pour mieux voir
                 const segmentWidth = totalWidth / numRoutes;
 
+                // Afficher chaque ligne avec une largeur proportionnelle et un léger décalage visuel
                 features.forEach((feature, index) => {
                     const routeColor = feature.properties?.route_color || '#3388ff';
-                    const offset = (index - (numRoutes - 1) / 2) * segmentWidth * 1.2;
-
+                    
+                    // Utiliser dashArray pour créer un effet visuel de séparation
+                    const dashPattern = numRoutes > 1 ? [segmentWidth * 3, segmentWidth] : null;
+                    
                     const layer = L.geoJSON(feature, {
                         style: {
                             color: routeColor,
-                            weight: Math.max(segmentWidth, 1.5),
+                            weight: Math.max(segmentWidth, 3),
                             opacity: 0.85,
-                            offset: offset
+                            lineCap: 'round',
+                            lineJoin: 'round',
+                            dashArray: index > 0 ? dashPattern : null  // Première ligne pleine, autres en dash
                         }
                     });
 
-                    // Appliquer l'offset manuellement avec polylineOffset si disponible
-                    if (L.PolylineOffset) {
-                        layer.eachLayer(sublayer => {
-                            if (sublayer instanceof L.Polyline) {
-                                const offsetPolyline = new L.PolylineOffset(sublayer.getLatLngs(), {
-                                    color: routeColor,
-                                    weight: Math.max(segmentWidth, 1.5),
-                                    opacity: 0.85,
-                                    offset: offset
-                                }).addTo(this.routeLayer);
-                                
-                                this.addRoutePopup(offsetPolyline, [feature], dataManager);
-                            }
-                        });
-                    } else {
-                        // Fallback sans offset
-                        layer.addTo(this.routeLayer);
-                        this.addRoutePopup(layer, [feature], dataManager);
-                    }
+                    layer.addTo(this.routeLayer);
+                    this.addRoutePopup(layer, features, dataManager);
                 });
             }
         });
 
-        // Ajuster la vue pour afficher toutes les routes
-        const bounds = this.routeLayer.getBounds();
-        if (bounds && bounds.isValid()) {
-            this.map.fitBounds(bounds);
+        // Ajuster la vue pour afficher toutes les routes (uniquement au premier chargement)
+        try {
+            const bounds = this.routeLayer.getBounds();
+            if (bounds && bounds.isValid()) {
+                this.map.fitBounds(bounds);
+            }
+        } catch (e) {
+            // Ignorer l'erreur si getBounds() n'est pas disponible (cas du layerGroup vide)
+            console.log('✓ Routes affichées (zoom non ajusté)');
         }
 
         console.log(`✓ ${geometryMap.size} segments de routes affichées avec multi-couleurs`);
