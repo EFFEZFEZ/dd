@@ -125,6 +125,14 @@ L'application attend les fichiers GTFS standards:
 
 ## Dernières Modifications (05/11/2025)
 
+### Version 2.0 - Filtrage et Rendu Multi-Couleurs
+- 🎯 **Filtrage des lignes**: Panel de filtrage avec cases à cocher pour afficher/masquer des lignes spécifiques
+- 🌈 **Rendu multi-couleurs des routes**: Quand plusieurs lignes partagent le même segment, les couleurs sont divisées proportionnellement
+- ⚡ **Mise à jour en temps réel des popups**: Les informations de bus (prochain arrêt, ETA) se mettent à jour automatiquement sans re-clic
+- 🔢 **Recalcul dynamique**: Les dimensions des routes s'ajustent automatiquement selon le nombre de lignes visibles
+- 📊 **Compteur amélioré**: Affiche le nombre de bus visibles / total
+
+### Version 1.0 - Base
 - ✨ **Amélioration majeure**: Les bus suivent maintenant les tracés GeoJSON des routes
 - 🛣️ Interpolation intelligente le long des routes réelles
 - 🔄 Fallback automatique vers interpolation linéaire si pas de tracé disponible
@@ -133,11 +141,60 @@ L'application attend les fichiers GTFS standards:
 - 🏷️ Popups améliorés avec badge coloré de la ligne
 - 🎯 Filtrage intelligent pour n'afficher que les tracés des routes (LineString)
 
+## Fonctionnalités Avancées
+
+### Filtrage des Lignes
+L'application dispose d'un panneau de filtrage accessible via le bouton "🎯 Filtrer les lignes". Vous pouvez :
+- Afficher/masquer des lignes spécifiques en cochant/décochant les cases
+- Sélectionner toutes les lignes ou aucune avec les boutons dédiés
+- Voir le nombre de bus visibles sur le total en haut de la page
+
+### Rendu Multi-Couleurs
+Quand plusieurs lignes partagent le même segment de route, l'application :
+- Divise automatiquement la largeur de la route par le nombre de lignes
+- Affiche chaque ligne avec sa couleur propre côte à côte
+- Recalcule les dimensions quand vous filtrez des lignes
+- Affiche toutes les lignes dans le popup quand vous cliquez sur un segment partagé
+
+### Mise à Jour en Temps Réel
+Les popups de bus se mettent à jour automatiquement toutes les secondes :
+- Le prochain arrêt change quand le bus avance
+- L'ETA (temps d'arrivée estimé) diminue en temps réel
+- Pas besoin de fermer et rouvrir le popup
+
+## Voies de Bus Dédiées
+
+**Note sur les voies de bus** : L'application utilise actuellement les tracés GeoJSON fournis pour positionner les bus sur la carte. Pour une représentation plus précise prenant en compte les voies de bus dédiées :
+
+1. **Données GeoJSON séparées** : Créez des tracés GeoJSON distincts pour :
+   - Les voies de bus dédiées (bus-only lanes)
+   - Les routes partagées avec le trafic général
+
+2. **Propriétés recommandées** : Ajoutez dans vos fichiers GeoJSON :
+   ```json
+   {
+     "properties": {
+       "route_id": "12",
+       "bus_lane": true,
+       "lane_type": "dedicated|shared|mixed"
+     }
+   }
+   ```
+
+3. **Amélioration future** : Le système de rendu multi-couleurs pourrait être étendu pour :
+   - Afficher les voies dédiées avec un style distinct
+   - Calculer des temps de parcours différents selon le type de voie
+   - Prendre en compte les restrictions de circulation
+
 ## Prochaines Améliorations Possibles
 
+- ✅ ~~Support du filtrage des lignes visibles~~ (Implémenté)
+- ✅ ~~Rendu multi-couleurs pour routes partagées~~ (Implémenté)
+- ✅ ~~Mise à jour en temps réel des popups~~ (Implémenté)
 - Support de calendar.txt pour filtrer par jour
-- Affichage des arrêts sur la carte
-- Filtrage des lignes visibles
-- Mode replay avec timeline
-- Optimisation pour grands réseaux (>100 bus)
-- Export de captures d'état
+- Affichage des arrêts sur la carte avec popups
+- Mode replay avec timeline et historique
+- Optimisation pour très grands réseaux (>200 bus)
+- Export de captures d'état et statistiques
+- Gestion des voies de bus dédiées avec tracés séparés
+- Calcul de temps de parcours basé sur le trafic
