@@ -90,23 +90,9 @@ async function initializeApp() {
 }
 
 function checkAndSetupTimeMode() {
-    const now = timeManager.getRealTime();
-    const activeTripsNow = dataManager.getActiveTrips(now);
-    
-    if (activeTripsNow.length === 0) {
-        const firstActiveTime = dataManager.findFirstActiveSecond();
-        timeManager.setMode('simulated');
-        timeManager.setTime(firstActiveTime);
-        
-        const timeStr = timeManager.formatTime(firstActiveTime);
-        showModeBanner(`Mode simulation - affichage à ${timeStr}`);
-        console.log(`🎭 Aucun bus actif à l'heure actuelle. Passage en mode simulation à ${timeStr}`);
-    } else {
-        timeManager.setMode('real');
-        console.log('⏰ Mode temps réel activé - des bus sont actuellement en service');
-    }
-    
+    timeManager.setMode('real');
     timeManager.play();
+    console.log('⏰ Mode temps réel activé');
 }
 
 function showModeBanner(message) {
@@ -334,20 +320,6 @@ function setupEventListeners() {
             if (checkbox) checkbox.checked = false;
         });
         handleRouteFilterChange();
-    });
-    
-    document.getElementById('btn-real-time').addEventListener('click', () => {
-        const now = timeManager.getRealTime();
-        const activeTripsNow = dataManager.getActiveTrips(now);
-        
-        if (activeTripsNow.length > 0) {
-            timeManager.setMode('real');
-            timeManager.play();
-            hideModeBanner();
-        } else {
-            showModeBanner('Aucun bus en circulation à l\'heure actuelle');
-            setTimeout(() => hideModeBanner(), 3000);
-        }
     });
     
     timeManager.addListener(updateData);

@@ -38,16 +38,14 @@ Application web interactive de visualisation en temps réel des positions de bus
    - Affichage des tracés de lignes (GeoJSON)
    - Marqueurs animés pour chaque bus actif
 
-2. **Simulation Temporelle**
-   - Horloge synchronisée avec les horaires GTFS
-   - Contrôles Play/Pause/Reset
-   - Vitesses de simulation: x1, x2, x4, x8
-   - Configuration de l'heure de départ
+2. **Horloge en Temps Réel**
+   - Horloge toujours synchronisée avec l'heure actuelle
+   - Affichage des bus en circulation selon les horaires GTFS
+   - Mise à jour automatique chaque seconde
 
 3. **Informations en Temps Réel**
    - Popup sur clic de bus (ligne, destination, ETA)
-   - Compteur de bus actifs
-   - Indicateur de vitesse de simulation
+   - Compteur de bus actifs / total
 
 4. **Animation Fluide**
    - Interpolation linéaire entre arrêts
@@ -64,11 +62,11 @@ Application web interactive de visualisation en temps réel des positions de bus
    - Le serveur HTTP Python est configuré pour servir depuis `/public/`
    - Accéder à l'application via le navigateur Replit
 
-3. **Contrôler la simulation**:
-   - Ajuster l'heure de départ si nécessaire
-   - Cliquer sur "Play" pour démarrer
-   - Utiliser les boutons de vitesse pour accélérer
+3. **Utiliser l'application**:
+   - L'application démarre automatiquement à l'heure actuelle
+   - Utiliser "Filtrer" pour sélectionner les lignes à afficher
    - Cliquer sur les bus pour voir leurs détails
+   - L'affichage se met à jour automatiquement chaque seconde
 
 ## Modules JavaScript
 
@@ -125,17 +123,18 @@ L'application attend les fichiers GTFS standards:
 
 ## Dernières Modifications (05/11/2025)
 
+### Version 7.0 - Simplification et Optimisation
+- 🧹 **Interface épurée** : Suppression des marqueurs d'arrêts/terminus pour une carte plus propre
+- ⚡ **Code optimisé** : Nettoyage complet du code mort (gestion de vitesse, marqueurs inutilisés)
+- 🎯 **Focus sur l'essentiel** : Interface minimaliste centrée sur la visualisation des bus en mouvement
+- ⏰ **Mode temps réel permanent** : L'application affiche toujours l'heure actuelle, plus de mode simulation
+- ✅ **Stabilité améliorée** : Tests et validation de toutes les fonctionnalités après optimisation
+
 ### Version 6.0 - Système de Catégorisation des Lignes
 - 📂 **Organisation par catégories** : Les lignes sont maintenant classées selon la structure officielle de Péribus
 - 🎨 **Code couleur** : Chaque catégorie a sa propre couleur distinctive
 - ⚡ **Filtrage par catégorie** : Boutons pour sélectionner/désélectionner toute une catégorie en un clic
 - 📊 **Interface améliorée** : Panneau de filtrage restructuré pour une meilleure lisibilité
-
-### Version 5.0 - Marqueurs d'Arrêts et Hubs
-- 🔵 **Arrêts affichés** : 1 291 arrêts représentés par des ronds bleus
-- 🔴 **Hubs/Terminus** : 29 pôles d'échanges représentés par des carrés rouges
-- 🎯 **Détection automatique** : Identification des 4 pôles principaux de Péribus (Gare SNCF/PEM, Bugeaud, Tourny, Joséphine Baker)
-- 💬 **Popups informatifs** : Informations détaillées pour chaque arrêt
 
 ### Version 2.0 - Filtrage et Rendu Multi-Couleurs
 - 🎯 **Filtrage des lignes**: Panel de filtrage avec cases à cocher pour afficher/masquer des lignes spécifiques
