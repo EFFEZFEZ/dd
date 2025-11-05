@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualisation GTFS Bus en Temps Réel</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin=""/>
+    
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header with title and clock -->
+        <header>
+            <h1>🚌 Visualisation GTFS en Temps Réel</h1>
+            <div id="clock">
+                <span id="current-time">--:--:--</span>
+                <span id="speed-indicator">x1</span>
+            </div>
+        </header>
+
+        <!-- Control Panel -->
+        <div id="control-panel">
+            <div class="control-group">
+                <button id="btn-play" class="btn btn-primary">▶️ Play</button>
+                <button id="btn-pause" class="btn">⏸️ Pause</button>
+                <button id="btn-reset" class="btn">🔄 Reset</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Vitesse:</label>
+                <button class="btn-speed" data-speed="1">x1</button>
+                <button class="btn-speed" data-speed="2">x2</button>
+                <button class="btn-speed" data-speed="4">x4</button>
+                <button class="btn-speed" data-speed="8">x8</button>
+            </div>
+
+            <div class="control-group">
+                <label for="start-time">Heure de départ:</label>
+                <input type="time" id="start-time" value="08:00">
+            </div>
+
+            <div id="status-info">
+                <span id="bus-count">0 bus actifs</span>
+                <span id="data-status">En attente des données...</span>
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div id="map"></div>
+
+        <!-- Instructions Panel -->
+        <div id="instructions">
+            <h3>📋 Instructions</h3>
+            <ol>
+                <li>Placez vos fichiers GTFS dans <code>/public/data/gtfs/</code>
+                    <ul>
+                        <li>routes.txt</li>
+                        <li>trips.txt</li>
+                        <li>stop_times.txt</li>
+                        <li>stops.txt</li>
+                        <li>calendar.txt (optionnel)</li>
+                    </ul>
+                </li>
+                <li>Placez votre fichier GeoJSON dans <code>/public/data/map.geojson</code></li>
+                <li>Rafraîchissez la page</li>
+                <li>Cliquez sur "Play" pour démarrer l'animation</li>
+                <li>Cliquez sur un bus pour voir ses détails</li>
+            </ol>
+            <button id="close-instructions">✕ Fermer</button>
+        </div>
+    </div>
+
+    <!-- Load JavaScript modules -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
