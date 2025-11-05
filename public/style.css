@@ -443,8 +443,62 @@ header h1 {
     border-color: var(--primary);
 }
 
+/* Category Headers */
+.category-header {
+    padding: 0.75rem 1.25rem;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.category-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.category-title strong {
+    color: var(--text-primary);
+}
+
+.category-count {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 400;
+}
+
+.category-actions {
+    display: flex;
+    gap: 0.375rem;
+}
+
+.btn-category-action {
+    padding: 0.25rem 0.625rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-main);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+}
+
+.btn-category-action:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.category-routes {
+    background: var(--bg-main);
+}
+
 .route-list {
-    padding: 1rem 1.25rem;
+    padding: 0;
     overflow-y: auto;
     max-height: calc(70vh - 140px);
 }
@@ -453,12 +507,13 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.625rem 0.75rem;
-    margin-bottom: 0.5rem;
-    border-radius: 8px;
+    padding: 0.625rem 1.25rem;
+    margin-bottom: 0;
+    border-radius: 0;
     cursor: pointer;
     transition: all 0.15s ease;
-    border: 1px solid transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
 }
 
 .route-checkbox-item:hover {
