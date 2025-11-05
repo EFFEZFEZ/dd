@@ -15,8 +15,6 @@ let timeManager;
 let tripScheduler;
 let busPositionCalculator;
 let mapRenderer;
-let updateInterval;
-let popupUpdateInterval;
 let visibleRoutes = new Set();
 
 async function initializeApp() {
@@ -34,8 +32,8 @@ async function initializeApp() {
         
         initializeRouteFilter();
         
-        if (dataManager.geoJsonData) {
-            mapRenderer.displayMultiColorRoutes(dataManager.geoJsonData, dataManager, visibleRoutes);
+        if (dataManager.geoJson) {
+            mapRenderer.displayMultiColorRoutes(dataManager.geoJson, dataManager, visibleRoutes);
         }
         
         setupEventListeners();
@@ -43,11 +41,48 @@ async function initializeApp() {
         document.getElementById('instructions').classList.remove('hidden');
         updateDataStatus('Données chargées', 'loaded');
         
+        checkAndSetupTimeMode();
+        
         updateData();
         
     } catch (error) {
         console.error('Erreur lors de l\'initialisation:', error);
         updateDataStatus('Erreur de chargement', 'error');
+    }
+}
+
+function checkAndSetupTimeMode() {
+    const now = timeManager.getRealTime();
+    const activeTripsNow = dataManager.getActiveTrips(now);
+    
+    if (activeTripsNow.length === 0) {
+        const firstActiveTime = dataManager.findFirstActiveSecond();
+        timeManager.setMode('simulated');
+        timeManager.setTime(firstActiveTime);
+        
+        const timeStr = timeManager.formatTime(firstActiveTime);
+        showModeBanner(`Mode simulation - affichage à ${timeStr}`);
+        console.log(`🎭 Aucun bus actif à l'heure actuelle. Passage en mode simulation à ${timeStr}`);
+    } else {
+        timeManager.setMode('real');
+        console.log('⏰ Mode temps réel activé - des bus sont actuellement en service');
+    }
+    
+    timeManager.play();
+}
+
+function showModeBanner(message) {
+    const banner = document.getElementById('mode-banner');
+    if (banner) {
+        banner.textContent = message;
+        banner.classList.remove('hidden');
+    }
+}
+
+function hideModeBanner() {
+    const banner = document.getElementById('mode-banner');
+    if (banner) {
+        banner.classList.add('hidden');
     }
 }
 
@@ -98,8 +133,8 @@ function handleRouteFilterChange() {
         }
     });
     
-    if (dataManager.geoJsonData) {
-        mapRenderer.displayMultiColorRoutes(dataManager.geoJsonData, dataManager, visibleRoutes);
+    if (dataManager.geoJson) {
+        mapRenderer.displayMultiColorRoutes(dataManager.geoJson, dataManager, visibleRoutes);
     }
     
     updateData();
@@ -108,17 +143,14 @@ function handleRouteFilterChange() {
 function setupEventListeners() {
     document.getElementById('btn-play').addEventListener('click', () => {
         timeManager.play();
-        startUpdateLoop();
     });
     
     document.getElementById('btn-pause').addEventListener('click', () => {
         timeManager.pause();
-        stopUpdateLoop();
     });
     
     document.getElementById('btn-refresh').addEventListener('click', () => {
         timeManager.reset();
-        updateData();
     });
     
     document.getElementById('close-instructions').addEventListener('click', () => {
@@ -149,41 +181,42 @@ function setupEventListeners() {
         handleRouteFilterChange();
     });
     
+    document.getElementById('btn-real-time').addEventListener('click', () => {
+        const now = timeManager.getRealTime();
+        const activeTripsNow = dataManager.getActiveTrips(now);
+        
+        if (activeTripsNow.length > 0) {
+            timeManager.setMode('real');
+            timeManager.play();
+            hideModeBanner();
+        } else {
+            showModeBanner('Aucun bus en circulation à l\'heure actuelle');
+            setTimeout(() => hideModeBanner(), 3000);
+        }
+    });
+    
+    document.getElementById('btn-speed-1x').addEventListener('click', () => setSpeed(1));
+    document.getElementById('btn-speed-2x').addEventListener('click', () => setSpeed(2));
+    document.getElementById('btn-speed-5x').addEventListener('click', () => setSpeed(5));
+    document.getElementById('btn-speed-10x').addEventListener('click', () => setSpeed(10));
+    
     timeManager.addListener(updateData);
 }
 
-function startUpdateLoop() {
-    if (!updateInterval) {
-        updateInterval = setInterval(updateData, 1000);
-    }
+function setSpeed(multiplier) {
+    timeManager.setSpeed(multiplier);
     
-    if (!popupUpdateInterval) {
-        popupUpdateInterval = setInterval(() => {
-            const visibleBusIds = [];
-            Object.values(mapRenderer.busMarkers).forEach(markerData => {
-                if (markerData.marker.isPopupOpen()) {
-                    visibleBusIds.push(markerData.bus.tripId);
-                }
-            });
-            
-            if (visibleBusIds.length > 0) {
-                updateData();
-            }
-        }, 1000);
+    document.querySelectorAll('.btn-speed').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById(`btn-speed-${multiplier}x`).classList.add('active');
+    
+    if (timeManager.getIsSimulated()) {
+        const timeStr = timeManager.formatTime(timeManager.getCurrentSeconds());
+        showModeBanner(`Mode simulation x${multiplier} - affichage à ${timeStr}`);
     }
 }
 
-function stopUpdateLoop() {
-    if (updateInterval) {
-        clearInterval(updateInterval);
-        updateInterval = null;
-    }
-    
-    if (popupUpdateInterval) {
-        clearInterval(popupUpdateInterval);
-        popupUpdateInterval = null;
-    }
-}
 
 function updateData(timeInfo) {
     const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
@@ -193,7 +226,8 @@ function updateData(timeInfo) {
     
     const busesWithPositions = activeTrips
         .map(tripInfo => {
-            const position = busPositionCalculator.calculatePosition(tripInfo, currentSeconds);
+            const routeId = tripInfo.route?.route_id;
+            const position = busPositionCalculator.calculatePosition(tripInfo.segment, routeId);
             if (position) {
                 return {
                     tripId: tripInfo.tripId,

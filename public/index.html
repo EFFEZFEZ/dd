@@ -43,6 +43,9 @@
             </div>
         </header>
 
+        <!-- Mode Banner -->
+        <div id="mode-banner" class="hidden"></div>
+
         <!-- Control Panel -->
         <div id="control-panel">
             <div class="control-group">
@@ -70,6 +73,22 @@
                     </svg>
                     Filtrer
                 </button>
+            </div>
+
+            <div class="control-group">
+                <button id="btn-real-time" class="btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    Maintenant
+                </button>
+                <div class="speed-controls">
+                    <button id="btn-speed-1x" class="btn btn-speed active">1x</button>
+                    <button id="btn-speed-2x" class="btn btn-speed">2x</button>
+                    <button id="btn-speed-5x" class="btn btn-speed">5x</button>
+                    <button id="btn-speed-10x" class="btn btn-speed">10x</button>
+                </div>
             </div>
 
             <div id="status-info">

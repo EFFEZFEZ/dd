@@ -322,4 +322,66 @@ export class DataManager {
     toRad(degrees) {
         return degrees * Math.PI / 180;
     }
+
+    /**
+     * Récupère les limites de service de la journée (première et dernière heure de service)
+     */
+    getDailyServiceBounds() {
+        if (!this.isLoaded || Object.keys(this.stopTimesByTrip).length === 0) {
+            return { earliestStart: 0, latestEnd: 86400 };
+        }
+
+        let earliestStart = Infinity;
+        let latestEnd = -Infinity;
+
+        Object.values(this.stopTimesByTrip).forEach(stopTimes => {
+            if (stopTimes.length < 2) return;
+
+            const firstStop = stopTimes[0];
+            const lastStop = stopTimes[stopTimes.length - 1];
+
+            const startTime = this.timeToSeconds(firstStop.departure_time || firstStop.arrival_time);
+            const endTime = this.timeToSeconds(lastStop.arrival_time || lastStop.departure_time);
+
+            if (startTime < earliestStart) earliestStart = startTime;
+            if (endTime > latestEnd) latestEnd = endTime;
+        });
+
+        if (earliestStart === Infinity) earliestStart = 0;
+        if (latestEnd === -Infinity) latestEnd = 86400;
+
+        return { earliestStart, latestEnd };
+    }
+
+    /**
+     * Trouve la première seconde où il y a au moins un bus actif
+     */
+    findFirstActiveSecond() {
+        const bounds = this.getDailyServiceBounds();
+        return bounds.earliestStart;
+    }
+
+    /**
+     * Trouve la prochaine seconde active après currentSeconds
+     */
+    findNextActiveSecond(currentSeconds) {
+        let nextActiveTime = Infinity;
+
+        Object.values(this.stopTimesByTrip).forEach(stopTimes => {
+            if (stopTimes.length < 2) return;
+
+            const firstStop = stopTimes[0];
+            const startTime = this.timeToSeconds(firstStop.departure_time || firstStop.arrival_time);
+
+            if (startTime > currentSeconds && startTime < nextActiveTime) {
+                nextActiveTime = startTime;
+            }
+        });
+
+        if (nextActiveTime === Infinity) {
+            return this.findFirstActiveSecond();
+        }
+
+        return nextActiveTime;
+    }
 }
