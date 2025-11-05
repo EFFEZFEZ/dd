@@ -1,97 +1,65 @@
 /**
  * timeManager.js
  * 
- * Gère le temps simulé avec contrôles de lecture, pause et accélération
+ * Gère le temps réel pour l'affichage des bus en circulation
  */
 
 export class TimeManager {
-    constructor(startTimeString = '08:00:00') {
+    constructor() {
         this.isRunning = false;
-        this.speed = 1;
-        this.currentSeconds = this.parseTime(startTimeString);
-        this.startSeconds = this.currentSeconds;
-        this.lastUpdateTime = null;
         this.listeners = [];
     }
 
     /**
-     * Parse une heure HH:MM ou HH:MM:SS en secondes
+     * Récupère l'heure réelle actuelle
      */
-    parseTime(timeString) {
-        const parts = timeString.split(':');
-        const hours = parseInt(parts[0]);
-        const minutes = parseInt(parts[1]);
-        const seconds = parseInt(parts[2] || 0);
+    getRealTime() {
+        const now = new Date();
+        const hours = now.getHours();
+        const minutes = now.getMinutes();
+        const seconds = now.getSeconds();
         
         return hours * 3600 + minutes * 60 + seconds;
     }
 
     /**
-     * Démarre la simulation
+     * Démarre le mode temps réel
      */
     play() {
         if (!this.isRunning) {
             this.isRunning = true;
-            this.lastUpdateTime = Date.now();
             this.tick();
-            console.log('▶️ Simulation démarrée');
+            console.log('▶️ Mode temps réel démarré');
         }
     }
 
     /**
-     * Met en pause la simulation
+     * Met en pause la mise à jour
      */
     pause() {
         this.isRunning = false;
-        console.log('⏸️ Simulation en pause');
+        console.log('⏸️ Mode temps réel en pause');
     }
 
     /**
-     * Reset la simulation à l'heure de départ
+     * Redémarre le mode temps réel
      */
-    reset(startTimeString = null) {
-        this.pause();
-        if (startTimeString) {
-            this.startSeconds = this.parseTime(startTimeString);
-        }
-        this.currentSeconds = this.startSeconds;
-        this.notifyListeners();
-        console.log('🔄 Simulation réinitialisée');
-    }
-
-    /**
-     * Change la vitesse de simulation
-     */
-    setSpeed(newSpeed) {
-        this.speed = newSpeed;
-        console.log(`⚡ Vitesse: x${newSpeed}`);
+    reset() {
+        console.log('🔄 Rechargement du temps réel');
         this.notifyListeners();
     }
 
     /**
-     * Boucle principale de mise à jour du temps
+     * Boucle principale de mise à jour du temps réel
      */
     tick() {
         if (!this.isRunning) return;
 
-        const now = Date.now();
-        const deltaMs = now - this.lastUpdateTime;
-        this.lastUpdateTime = now;
-
-        // Convertir le delta en secondes simulées
-        const deltaSeconds = (deltaMs / 1000) * this.speed;
-        this.currentSeconds += deltaSeconds;
-
-        // Boucler à minuit (24h = 86400 secondes)
-        if (this.currentSeconds >= 86400) {
-            this.currentSeconds = 0;
-        }
-
-        // Notifier les listeners
+        // Mettre à jour avec l'heure réelle
         this.notifyListeners();
 
-        // Continuer la boucle
-        requestAnimationFrame(() => this.tick());
+        // Continuer la boucle (mise à jour toutes les secondes)
+        setTimeout(() => this.tick(), 1000);
     }
 
     /**
@@ -102,14 +70,15 @@ export class TimeManager {
     }
 
     /**
-     * Notifie tous les listeners
+     * Notifie tous les listeners avec l'heure réelle
      */
     notifyListeners() {
+        const currentSeconds = this.getRealTime();
         const timeInfo = {
-            seconds: this.currentSeconds,
-            timeString: this.formatTime(this.currentSeconds),
-            speed: this.speed,
-            isRunning: this.isRunning
+            seconds: currentSeconds,
+            timeString: this.formatTime(currentSeconds),
+            isRunning: this.isRunning,
+            date: new Date()
         };
 
         this.listeners.forEach(callback => {
@@ -129,30 +98,23 @@ export class TimeManager {
     }
 
     /**
-     * Récupère le temps actuel en secondes
+     * Récupère le temps actuel en secondes (heure réelle)
      */
     getCurrentSeconds() {
-        return this.currentSeconds;
+        return this.getRealTime();
     }
 
     /**
-     * Récupère le temps actuel en format HH:MM:SS
+     * Récupère le temps actuel en format HH:MM:SS (heure réelle)
      */
     getCurrentTimeString() {
-        return this.formatTime(this.currentSeconds);
+        return this.formatTime(this.getRealTime());
     }
 
     /**
-     * Vérifie si la simulation est en cours
+     * Vérifie si le mode temps réel est actif
      */
     getIsRunning() {
         return this.isRunning;
-    }
-
-    /**
-     * Récupère la vitesse actuelle
-     */
-    getSpeed() {
-        return this.speed;
     }
 }

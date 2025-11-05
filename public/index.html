@@ -24,36 +24,23 @@
     <div id="app">
         <!-- Header with title and clock -->
         <header>
-            <h1>🚌 Visualisation GTFS en Temps Réel</h1>
+            <h1>🚌 Bus en Temps Réel - Périgueux</h1>
             <div id="clock">
                 <span id="current-time">--:--:--</span>
-                <span id="speed-indicator">x1</span>
+                <span id="date-indicator">--</span>
             </div>
         </header>
 
         <!-- Control Panel -->
         <div id="control-panel">
             <div class="control-group">
-                <button id="btn-play" class="btn btn-primary">▶️ Play</button>
+                <button id="btn-play" class="btn btn-primary">▶️ Démarrer</button>
                 <button id="btn-pause" class="btn">⏸️ Pause</button>
-                <button id="btn-reset" class="btn">🔄 Reset</button>
-            </div>
-            
-            <div class="control-group">
-                <label>Vitesse:</label>
-                <button class="btn-speed" data-speed="1">x1</button>
-                <button class="btn-speed" data-speed="2">x2</button>
-                <button class="btn-speed" data-speed="4">x4</button>
-                <button class="btn-speed" data-speed="8">x8</button>
-            </div>
-
-            <div class="control-group">
-                <label for="start-time">Heure de départ:</label>
-                <input type="time" id="start-time" value="08:00">
+                <button id="btn-refresh" class="btn">🔄 Actualiser</button>
             </div>
 
             <div id="status-info">
-                <span id="bus-count">0 bus actifs</span>
+                <span id="bus-count">0 bus en circulation</span>
                 <span id="data-status">En attente des données...</span>
             </div>
         </div>
@@ -71,13 +58,14 @@
                         <li>trips.txt</li>
                         <li>stop_times.txt</li>
                         <li>stops.txt</li>
-                        <li>calendar.txt (optionnel)</li>
+                        <li>calendar.txt</li>
                     </ul>
                 </li>
                 <li>Placez votre fichier GeoJSON dans <code>/public/data/map.geojson</code></li>
                 <li>Rafraîchissez la page</li>
-                <li>Cliquez sur "Play" pour démarrer l'animation</li>
-                <li>Cliquez sur un bus pour voir ses détails</li>
+                <li>Cliquez sur "Démarrer" pour afficher les bus en circulation</li>
+                <li>L'application utilise l'heure réelle et affiche les bus actuellement en circulation</li>
+                <li>Cliquez sur un bus pour voir la ligne, le prochain arrêt et la destination</li>
             </ol>
             <button id="close-instructions">✕ Fermer</button>
         </div>

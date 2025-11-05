@@ -138,39 +138,40 @@ export class MapRenderer {
     }
 
     /**
-     * Crée un marqueur pour un bus
+     * Crée un marqueur pour un bus (rectangle arrondi)
      */
     createBusMarker(bus, tripScheduler) {
         const { lat, lon } = bus.position;
         const route = bus.route;
         const routeShortName = route?.route_short_name || route?.route_id || '?';
-        const routeColor = route?.route_color ? `#${route.route_color}` : '#ff5722';
+        const routeColor = route?.route_color ? `#${route.route_color}` : '#FFC107';
 
-        // Créer une icône HTML personnalisée
+        // Créer une icône rectangulaire arrondie avec la couleur de la ligne
         const icon = L.divIcon({
-            className: 'bus-icon',
-            html: `<div style="background-color: ${routeColor}; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">${routeShortName}</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+            className: 'bus-icon-rect',
+            html: `<div style="background-color: ${routeColor}; width: 40px; height: 24px; border-radius: 6px; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 0.85rem; box-shadow: 0 2px 10px rgba(0,0,0,0.4); text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${routeShortName}</div>`,
+            iconSize: [40, 24],
+            iconAnchor: [20, 12]
         });
 
         const marker = L.marker([lat, lon], { icon });
 
-        // Ajouter un popup avec les informations du bus
-        const destination = tripScheduler.getTripDestination(
-            tripScheduler.dataManager.stopTimesByTrip[bus.tripId]
-        );
-        
-        const nextStopETA = tripScheduler.getNextStopETA(bus.segment, bus.currentSeconds);
+        // Récupérer les informations pour le popup
+        const stopTimes = tripScheduler.dataManager.stopTimesByTrip[bus.tripId];
+        const destination = tripScheduler.getTripDestination(stopTimes);
         const nextStopName = bus.segment?.toStopInfo?.stop_name || 'Inconnu';
+        const nextStopETA = tripScheduler.getNextStopETA(bus.segment, bus.currentSeconds);
+        
+        // Nom de la ligne
+        const lineName = route?.route_long_name || route?.route_short_name || 'Ligne inconnue';
 
         const popupContent = `
             <div class="bus-popup">
-                <h4>🚌 ${route?.route_long_name || route?.route_short_name || 'Ligne inconnue'}</h4>
-                <p><strong>Destination:</strong> ${destination}</p>
-                <p><strong>Prochain arrêt:</strong> ${nextStopName}</p>
-                ${nextStopETA ? `<p><strong>ETA:</strong> ${nextStopETA.formatted}</p>` : ''}
-                <p><strong>Trip ID:</strong> ${bus.tripId}</p>
+                <h4 style="color: ${routeColor}; margin: 0 0 10px 0;">🚌 Ligne ${routeShortName}</h4>
+                <p style="margin: 5px 0;"><strong>Nom:</strong> ${lineName}</p>
+                <p style="margin: 5px 0;"><strong>Direction:</strong> ${destination}</p>
+                <p style="margin: 5px 0;"><strong>Prochain arrêt:</strong> ${nextStopName}</p>
+                ${nextStopETA ? `<p style="margin: 5px 0;"><strong>Arrivée dans:</strong> ${nextStopETA.formatted}</p>` : ''}
             </div>
         `;
 

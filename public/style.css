@@ -41,7 +41,7 @@ header h1 {
     font-variant-numeric: tabular-nums;
 }
 
-#speed-indicator {
+#date-indicator {
     background: rgba(255,255,255,0.2);
     padding: 0.25rem 0.75rem;
     border-radius: 20px;

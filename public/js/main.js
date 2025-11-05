@@ -14,14 +14,13 @@ class GTFSVisualizationApp {
     constructor() {
         // Initialiser les modules
         this.dataManager = new DataManager();
-        this.timeManager = new TimeManager('08:00:00');
+        this.timeManager = new TimeManager();
         this.tripScheduler = null;
         this.positionCalculator = null;
         this.mapRenderer = new MapRenderer('map');
         
         // État de l'application
         this.isInitialized = false;
-        this.animationFrameId = null;
     }
 
     /**
@@ -55,7 +54,7 @@ class GTFSVisualizationApp {
 
         this.isInitialized = true;
         this.hideInstructions();
-        this.updateStatus('Prêt - Cliquez sur Play pour démarrer', true);
+        this.updateStatus('Prêt - Cliquez sur Démarrer pour voir les bus en temps réel', true);
         
         console.log('✅ Application initialisée avec succès!');
     }
@@ -80,42 +79,23 @@ class GTFSVisualizationApp {
      * Configure les contrôles de l'interface utilisateur
      */
     setupUIControls() {
-        // Bouton Play
+        // Bouton Démarrer
         document.getElementById('btn-play').addEventListener('click', () => {
             if (this.isInitialized) {
                 this.timeManager.play();
-                this.startAnimation();
             }
         });
 
         // Bouton Pause
         document.getElementById('btn-pause').addEventListener('click', () => {
             this.timeManager.pause();
-            this.stopAnimation();
         });
 
-        // Bouton Reset
-        document.getElementById('btn-reset').addEventListener('click', () => {
-            const startTime = document.getElementById('start-time').value + ':00';
-            this.timeManager.reset(startTime);
-            this.mapRenderer.clearAllMarkers();
+        // Bouton Actualiser
+        document.getElementById('btn-refresh').addEventListener('click', () => {
+            this.timeManager.reset();
             this.updateBusDisplay();
         });
-
-        // Boutons de vitesse
-        document.querySelectorAll('.btn-speed').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const speed = parseInt(e.target.dataset.speed);
-                this.timeManager.setSpeed(speed);
-                
-                // Mettre à jour l'apparence des boutons
-                document.querySelectorAll('.btn-speed').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-            });
-        });
-
-        // Marquer x1 comme actif par défaut
-        document.querySelector('.btn-speed[data-speed="1"]').classList.add('active');
 
         // Bouton fermer les instructions
         document.getElementById('close-instructions').addEventListener('click', () => {
@@ -127,11 +107,15 @@ class GTFSVisualizationApp {
      * Appelé à chaque mise à jour du temps
      */
     onTimeUpdate(timeInfo) {
-        // Mettre à jour l'affichage de l'horloge
+        // Mettre à jour l'affichage de l'horloge avec l'heure réelle
         document.getElementById('current-time').textContent = timeInfo.timeString;
-        document.getElementById('speed-indicator').textContent = `x${timeInfo.speed}`;
         
-        // Mettre à jour les bus uniquement si la simulation est en cours
+        // Afficher la date
+        const date = timeInfo.date;
+        const dateStr = date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+        document.getElementById('date-indicator').textContent = dateStr;
+        
+        // Mettre à jour les bus si le mode temps réel est actif
         if (timeInfo.isRunning) {
             this.updateBusDisplay();
         }
@@ -156,34 +140,7 @@ class GTFSVisualizationApp {
         
         // Mettre à jour le compteur
         const busCount = this.mapRenderer.getBusCount();
-        document.getElementById('bus-count').textContent = `${busCount} bus actif${busCount > 1 ? 's' : ''}`;
-    }
-
-    /**
-     * Démarre la boucle d'animation
-     */
-    startAnimation() {
-        if (this.animationFrameId) {
-            return; // Déjà en cours
-        }
-
-        const animate = () => {
-            if (this.timeManager.getIsRunning()) {
-                this.animationFrameId = requestAnimationFrame(animate);
-            }
-        };
-
-        this.animationFrameId = requestAnimationFrame(animate);
-    }
-
-    /**
-     * Arrête la boucle d'animation
-     */
-    stopAnimation() {
-        if (this.animationFrameId) {
-            cancelAnimationFrame(this.animationFrameId);
-            this.animationFrameId = null;
-        }
+        document.getElementById('bus-count').textContent = `${busCount} bus en circulation`;
     }
 
     /**
