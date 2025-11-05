@@ -92,7 +92,9 @@ Orchestre toute l'application, initialise les modules, configure les événement
 - Calcule la progression sur chaque segment
 
 ### busPositionCalculator.js
-- Interpole les positions GPS entre deux arrêts
+- Interpole les positions GPS le long des tracés GeoJSON
+- Suit les routes réelles au lieu d'une ligne droite entre arrêts
+- Fallback vers interpolation linéaire si pas de tracé disponible
 - Utilise la progression pour un mouvement fluide
 - Calcule l'orientation du bus (bearing)
 
@@ -115,10 +117,18 @@ L'application attend les fichiers GTFS standards:
 - ✅ Architecture modulaire complète
 - ✅ Chargement GTFS et GeoJSON
 - ✅ Simulation temporelle avec contrôles
-- ✅ Calcul des positions interpolées
+- ✅ **Calcul des positions le long des tracés GeoJSON réels**
+- ✅ **Les bus suivent les routes exactes au lieu de lignes droites**
 - ✅ Rendu sur carte Leaflet
 - ✅ Popups avec informations détaillées
 - ✅ Interface utilisateur responsive
+
+## Dernières Modifications (05/11/2025)
+
+- ✨ **Amélioration majeure**: Les bus suivent maintenant les tracés GeoJSON des routes
+- 🛣️ Interpolation intelligente le long des routes réelles
+- 🔄 Fallback automatique vers interpolation linéaire si pas de tracé disponible
+- ⚡ Performances optimisées pour flottes de taille moyenne
 
 ## Prochaines Améliorations Possibles
 
