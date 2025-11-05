@@ -125,6 +125,18 @@ L'application attend les fichiers GTFS standards:
 
 ## Dernières Modifications (05/11/2025)
 
+### Version 6.0 - Système de Catégorisation des Lignes
+- 📂 **Organisation par catégories** : Les lignes sont maintenant classées selon la structure officielle de Péribus
+- 🎨 **Code couleur** : Chaque catégorie a sa propre couleur distinctive
+- ⚡ **Filtrage par catégorie** : Boutons pour sélectionner/désélectionner toute une catégorie en un clic
+- 📊 **Interface améliorée** : Panneau de filtrage restructuré pour une meilleure lisibilité
+
+### Version 5.0 - Marqueurs d'Arrêts et Hubs
+- 🔵 **Arrêts affichés** : 1 291 arrêts représentés par des ronds bleus
+- 🔴 **Hubs/Terminus** : 29 pôles d'échanges représentés par des carrés rouges
+- 🎯 **Détection automatique** : Identification des 4 pôles principaux de Péribus (Gare SNCF/PEM, Bugeaud, Tourny, Joséphine Baker)
+- 💬 **Popups informatifs** : Informations détaillées pour chaque arrêt
+
 ### Version 2.0 - Filtrage et Rendu Multi-Couleurs
 - 🎯 **Filtrage des lignes**: Panel de filtrage avec cases à cocher pour afficher/masquer des lignes spécifiques
 - 🌈 **Rendu multi-couleurs des routes**: Quand plusieurs lignes partagent le même segment, les couleurs sont divisées proportionnellement
@@ -143,11 +155,21 @@ L'application attend les fichiers GTFS standards:
 
 ## Fonctionnalités Avancées
 
-### Filtrage des Lignes
-L'application dispose d'un panneau de filtrage accessible via le bouton "🎯 Filtrer les lignes". Vous pouvez :
-- Afficher/masquer des lignes spécifiques en cochant/décochant les cases
-- Sélectionner toutes les lignes ou aucune avec les boutons dédiés
+### Filtrage des Lignes par Catégories
+L'application dispose d'un panneau de filtrage accessible via le bouton "Filtrer". Les lignes sont organisées par catégories selon la structure officielle de Péribus :
+
+**Catégories disponibles :**
+- 🔵 **Lignes majeures** : A, B, C, D
+- 🔴 **Lignes express** : e1, e4, e5, e6, e7
+- 🟢 **Lignes de quartier** : K1A, K1B, K2, K3A, K3B, K4A, K4B, K5, K6
+- 🟣 **Lignes de rabattement** : R1 à R14
+- 🟡 **Navettes** : N, N1
+
+**Fonctionnalités du filtre :**
+- Afficher/masquer des lignes individuellement
+- Sélectionner/désélectionner toute une catégorie avec les boutons "Tous/Aucun"
 - Voir le nombre de bus visibles sur le total en haut de la page
+- Code couleur pour identifier rapidement chaque catégorie
 
 ### Rendu Multi-Couleurs
 Quand plusieurs lignes partagent le même segment de route, l'application :
@@ -191,8 +213,9 @@ Les popups de bus se mettent à jour automatiquement toutes les secondes :
 - ✅ ~~Support du filtrage des lignes visibles~~ (Implémenté)
 - ✅ ~~Rendu multi-couleurs pour routes partagées~~ (Implémenté)
 - ✅ ~~Mise à jour en temps réel des popups~~ (Implémenté)
+- ✅ ~~Affichage des arrêts sur la carte avec popups~~ (Implémenté)
+- ✅ ~~Organisation des lignes par catégories~~ (Implémenté)
 - Support de calendar.txt pour filtrer par jour
-- Affichage des arrêts sur la carte avec popups
 - Mode replay avec timeline et historique
 - Optimisation pour très grands réseaux (>200 bus)
 - Export de captures d'état et statistiques

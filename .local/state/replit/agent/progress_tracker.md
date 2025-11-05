@@ -36,6 +36,14 @@
 - [x] 25. Détection automatique des hubs basée sur mots-clés (Gare SNCF/PEM, Bugeaud, Tourny, Joséphine Baker)
 - [x] 26. Popups informatifs pour chaque arrêt avec nom, description, ID et statut de pôle d'échange
 
+## Système de Catégorisation des Lignes (Version 6.0)
+- [x] 27. Recherche et analyse de la structure officielle du réseau Péribus sur tc-infos.fr
+- [x] 28. Création du système de catégories (Majeures, Express, Quartier, Rabattement, Navettes)
+- [x] 29. Refonte du panneau de filtrage avec organisation par catégories
+- [x] 30. Ajout de boutons "Tous/Aucun" pour chaque catégorie
+- [x] 31. Code couleur pour chaque catégorie pour améliorer la lisibilité
+- [x] 32. Styles CSS pour les en-têtes de catégories et actions
+
 ## Statut Final
 ✅ **Projet complètement fonctionnel avec système de simulation et rendu en temps réel**
 - Interface épurée avec icônes SVG
@@ -51,6 +59,11 @@
   - 29 hubs/terminus affichés avec des carrés rouges
   - Détection automatique des 4 pôles d'échanges principaux de Péribus
   - Popups informatifs pour chaque arrêt
+- **Système de catégorisation des lignes** 🆕
+  - Organisation par catégories officielles (Majeures, Express, Quartier, Rabattement, Navettes)
+  - Boutons pour sélectionner/désélectionner toute une catégorie
+  - Code couleur distinctif pour chaque catégorie
+  - Interface plus claire et intuitive pour gérer les lignes visibles
 - Style cohérent et professionnel
 - Application prête à recevoir les données GTFS de l'utilisateur
 
