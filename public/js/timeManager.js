@@ -10,7 +10,6 @@ export class TimeManager {
         this.listeners = [];
         this.mode = 'real';
         this.simulatedSeconds = null;
-        this.speed = 1;
         this.lastTickTime = null;
     }
 
@@ -47,14 +46,6 @@ export class TimeManager {
         this.lastTickTime = Date.now();
         console.log(`⏰ Heure simulée définie: ${this.formatTime(seconds)}`);
         this.notifyListeners();
-    }
-
-    /**
-     * Définit la vitesse de simulation
-     */
-    setSpeed(multiplier) {
-        this.speed = multiplier;
-        console.log(`⚡ Vitesse de simulation: x${multiplier}`);
     }
 
     /**
@@ -95,7 +86,7 @@ export class TimeManager {
         const now = Date.now();
         if (this.mode === 'simulated' && this.simulatedSeconds !== null && this.lastTickTime !== null) {
             const elapsed = (now - this.lastTickTime) / 1000;
-            this.simulatedSeconds += elapsed * this.speed;
+            this.simulatedSeconds += elapsed;
             
             if (this.simulatedSeconds >= 86400) {
                 this.simulatedSeconds = 0;
@@ -125,7 +116,6 @@ export class TimeManager {
             timeString: this.formatTime(currentSeconds),
             isRunning: this.isRunning,
             mode: this.mode,
-            speed: this.speed,
             date: new Date()
         };
 
@@ -174,12 +164,5 @@ export class TimeManager {
      */
     getIsSimulated() {
         return this.mode === 'simulated';
-    }
-
-    /**
-     * Récupère la vitesse actuelle
-     */
-    getSpeed() {
-        return this.speed;
     }
 }
