@@ -9,22 +9,10 @@ export class MapRenderer {
         this.mapElementId = mapElementId;
         this.map = null;
         this.busMarkers = {};
-        this.stopMarkers = null;
         this.routeLayer = null;
         this.selectedRoute = null;
         this.centerCoordinates = [45.1833, 0.7167]; // Périgueux
         this.zoomLevel = 13;
-        
-        // Hubs principaux de Péribus
-        this.hubKeywords = [
-            'gare',
-            'sncf',
-            'pem',
-            'bugeaud',
-            'tourny',
-            'joséphine baker',
-            'josephine baker'
-        ];
     }
 
     /**
@@ -430,118 +418,5 @@ export class MapRenderer {
             this.map.removeLayer(markerData.marker);
         });
         this.busMarkers = {};
-    }
-
-    /**
-     * Vérifie si un arrêt est un hub principal
-     */
-    isHub(stopName) {
-        if (!stopName) return false;
-        const lowerName = stopName.toLowerCase();
-        return this.hubKeywords.some(keyword => lowerName.includes(keyword));
-    }
-
-    /**
-     * Affiche les marqueurs pour tous les arrêts
-     * Petits ronds pour les arrêts normaux, carrés pour les hubs/terminus
-     */
-    displayStopMarkers(dataManager) {
-        if (!dataManager || !dataManager.stops || dataManager.stops.length === 0) {
-            console.warn('Aucun arrêt à afficher');
-            return;
-        }
-
-        // Supprimer les marqueurs d'arrêts existants
-        if (this.stopMarkers) {
-            this.map.removeLayer(this.stopMarkers);
-        }
-
-        this.stopMarkers = L.layerGroup().addTo(this.map);
-
-        let hubCount = 0;
-        let stopCount = 0;
-
-        dataManager.stops.forEach(stop => {
-            const lat = parseFloat(stop.stop_lat);
-            const lon = parseFloat(stop.stop_lon);
-
-            if (!lat || !lon || isNaN(lat) || isNaN(lon)) {
-                return;
-            }
-
-            const stopName = stop.stop_name || 'Arrêt';
-            const isHub = this.isHub(stopName);
-
-            let marker;
-            if (isHub) {
-                // Marqueur carré pour les hubs/terminus
-                const icon = L.divIcon({
-                    className: 'stop-marker-hub',
-                    html: `<div style="
-                        width: 12px; 
-                        height: 12px; 
-                        background-color: #ef4444; 
-                        border: 2px solid white; 
-                        box-shadow: 0 1px 4px rgba(0,0,0,0.4);
-                        cursor: pointer;
-                    "></div>`,
-                    iconSize: [12, 12],
-                    iconAnchor: [6, 6]
-                });
-                marker = L.marker([lat, lon], { icon });
-                hubCount++;
-            } else {
-                // Marqueur rond pour les arrêts normaux
-                marker = L.circleMarker([lat, lon], {
-                    radius: 4,
-                    fillColor: '#3b82f6',
-                    color: '#ffffff',
-                    weight: 1.5,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                });
-                stopCount++;
-            }
-
-            // Ajouter un popup avec les informations de l'arrêt
-            const popupContent = `
-                <div class="stop-popup">
-                    <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 0.95rem;">
-                        ${isHub ? '🔶 ' : ''}${stopName}
-                    </h4>
-                    ${stop.stop_desc ? `<p style="margin: 4px 0; font-size: 0.85rem; color: #64748b;">${stop.stop_desc}</p>` : ''}
-                    <p style="margin: 4px 0; font-size: 0.75rem; color: #94a3b8;">
-                        ID: ${stop.stop_id}
-                    </p>
-                    ${isHub ? '<p style="margin: 4px 0; font-size: 0.8rem; color: #ef4444; font-weight: bold;">Pôle d\'échange</p>' : ''}
-                </div>
-            `;
-            marker.bindPopup(popupContent);
-
-            marker.addTo(this.stopMarkers);
-        });
-
-        console.log(`✓ ${stopCount} arrêts (ronds) et ${hubCount} hubs/terminus (carrés) affichés`);
-    }
-
-    /**
-     * Masque les marqueurs d'arrêts
-     */
-    hideStopMarkers() {
-        if (this.stopMarkers) {
-            this.map.removeLayer(this.stopMarkers);
-            this.stopMarkers = null;
-        }
-    }
-
-    /**
-     * Active/désactive l'affichage des arrêts
-     */
-    toggleStopMarkers(dataManager) {
-        if (this.stopMarkers) {
-            this.hideStopMarkers();
-        } else {
-            this.displayStopMarkers(dataManager);
-        }
     }
 }
