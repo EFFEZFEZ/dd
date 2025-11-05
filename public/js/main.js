@@ -43,6 +43,8 @@ async function initializeApp() {
         document.getElementById('instructions').classList.remove('hidden');
         updateDataStatus('Données chargées', 'loaded');
         
+        updateData();
+        
     } catch (error) {
         console.error('Erreur lors de l\'initialisation:', error);
         updateDataStatus('Erreur de chargement', 'error');
@@ -183,8 +185,8 @@ function stopUpdateLoop() {
     }
 }
 
-function updateData() {
-    const currentSeconds = timeManager.getCurrentSeconds();
+function updateData(timeInfo) {
+    const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
     updateClock(currentSeconds);
     
     const activeTrips = tripScheduler.getActiveTrips(currentSeconds);

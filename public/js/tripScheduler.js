@@ -10,10 +10,10 @@ export class TripScheduler {
     }
 
     /**
-     * Récupère tous les bus actifs au temps donné
+     * Récupère tous les trips actifs au temps donné
      * Retourne un tableau d'objets avec les informations de position
      */
-    getActiveBuses(currentSeconds) {
+    getActiveTrips(currentSeconds) {
         if (!this.dataManager.isLoaded) {
             return [];
         }
@@ -22,7 +22,6 @@ export class TripScheduler {
         const activeBuses = [];
 
         activeTrips.forEach(({ tripId, trip, stopTimes, route }) => {
-            // Trouver entre quels arrêts se trouve le bus
             const segment = this.findCurrentSegment(stopTimes, currentSeconds);
             
             if (segment) {
