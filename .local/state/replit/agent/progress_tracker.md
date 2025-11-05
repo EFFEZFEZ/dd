@@ -29,6 +29,13 @@
 - [x] 20. Élimination des boucles de mise à jour redondantes pour optimiser les performances
 - [x] 21. Nettoyage du code et suppression des variables inutilisées
 
+## Marqueurs d'Arrêts et Hubs (Version 5.0)
+- [x] 22. Recherche documentée sur le réseau Péribus et ses 4 pôles d'échanges principaux
+- [x] 23. Ajout de marqueurs circulaires bleus pour tous les arrêts (1291 arrêts)
+- [x] 24. Ajout de marqueurs carrés rouges pour les hubs/terminus (29 hubs détectés automatiquement)
+- [x] 25. Détection automatique des hubs basée sur mots-clés (Gare SNCF/PEM, Bugeaud, Tourny, Joséphine Baker)
+- [x] 26. Popups informatifs pour chaque arrêt avec nom, description, ID et statut de pôle d'échange
+
 ## Statut Final
 ✅ **Projet complètement fonctionnel avec système de simulation et rendu en temps réel**
 - Interface épurée avec icônes SVG
@@ -39,6 +46,11 @@
   - Contrôles de vitesse pour accélérer la simulation (1x, 2x, 5x, 10x)
   - Bannière visuelle indiquant le mode actif
 - **Bus affichés en temps réel** suivant les tracés GeoJSON des routes 🆕
+- **Marqueurs d'arrêts et hubs** 🆕
+  - 1 291 arrêts affichés avec des ronds bleus
+  - 29 hubs/terminus affichés avec des carrés rouges
+  - Détection automatique des 4 pôles d'échanges principaux de Péribus
+  - Popups informatifs pour chaque arrêt
 - Style cohérent et professionnel
 - Application prête à recevoir les données GTFS de l'utilisateur
 

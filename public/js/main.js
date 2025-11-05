@@ -36,6 +36,9 @@ async function initializeApp() {
             mapRenderer.displayMultiColorRoutes(dataManager.geoJson, dataManager, visibleRoutes);
         }
         
+        // Afficher les marqueurs d'arrêts
+        mapRenderer.displayStopMarkers(dataManager);
+        
         setupEventListeners();
         
         document.getElementById('instructions').classList.remove('hidden');
