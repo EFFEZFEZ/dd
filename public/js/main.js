@@ -26,7 +26,7 @@ const LINE_CATEGORIES = {
     },
     'express': {
         name: 'Lignes express',
-        lines: ['e1', 'e4', 'e5', 'e6', 'e7'],
+        lines: ['e1', 'e2', 'e4', 'e5', 'e6', 'e7'],
         color: '#dc2626'
     },
     'quartier': {
@@ -36,7 +36,7 @@ const LINE_CATEGORIES = {
     },
     'rabattement': {
         name: 'Lignes de rabattement',
-        lines: ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'R12', 'R13', 'R14'],
+        lines: ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'R12', 'R13', 'R14', 'R15'],
         color: '#7c3aed'
     },
     'navettes': {
@@ -76,7 +76,10 @@ async function initializeApp() {
         
         setupEventListeners();
         
-        document.getElementById('instructions').classList.remove('hidden');
+        if (localStorage.getItem('gtfsInstructionsShown') !== 'true') {
+            document.getElementById('instructions').classList.remove('hidden');
+        }
+        
         updateDataStatus('Données chargées', 'loaded');
         
         checkAndSetupTimeMode();
@@ -90,9 +93,14 @@ async function initializeApp() {
 }
 
 function checkAndSetupTimeMode() {
-    timeManager.setMode('real');
+    // timeManager.setMode('real'); // Mettez l'ancien mode en commentaire
+    
+    // FORCER LE MODE SIMULATION pour les tests :
+    timeManager.setMode('simulated');
+    timeManager.setTime(14 * 3600); // Force l'heure à 14h00 (14 * 3600 secondes)
+    
     timeManager.play();
-    console.log('⏰ Mode temps réel activé');
+    console.log('⏰ Mode SIMULATION (14h00) activé pour les tests');
 }
 
 function showModeBanner(message) {
@@ -116,7 +124,6 @@ function initializeRouteFilter() {
     
     visibleRoutes.clear();
     
-    // Organiser les routes par catégorie
     const routesByCategory = {};
     Object.keys(LINE_CATEGORIES).forEach(cat => {
         routesByCategory[cat] = [];
@@ -128,13 +135,26 @@ function initializeRouteFilter() {
         const category = getCategoryForRoute(route.route_short_name);
         routesByCategory[category].push(route);
     });
+
+    Object.values(routesByCategory).forEach(routes => {
+        routes.sort((a, b) => {
+            const nameA = a.route_short_name;
+            const nameB = b.route_short_name;
+
+            const isRLineA = nameA.startsWith('R') && !isNaN(parseInt(nameA.substring(1)));
+            const isRLineB = nameB.startsWith('R') && !isNaN(parseInt(nameB.substring(1)));
+
+            if (isRLineA && isRLineB) {
+                return parseInt(nameA.substring(1)) - parseInt(nameB.substring(1));
+            }
+            return nameA.localeCompare(nameB);
+        });
+    });
     
-    // Créer l'interface par catégorie
     Object.entries(LINE_CATEGORIES).forEach(([categoryId, categoryInfo]) => {
         const routes = routesByCategory[categoryId];
         if (routes.length === 0) return;
         
-        // En-tête de catégorie
         const categoryHeader = document.createElement('div');
         categoryHeader.className = 'category-header';
         categoryHeader.innerHTML = `
@@ -152,7 +172,6 @@ function initializeRouteFilter() {
         `;
         routeCheckboxesContainer.appendChild(categoryHeader);
         
-        // Container des routes de cette catégorie
         const categoryContainer = document.createElement('div');
         categoryContainer.className = 'category-routes';
         categoryContainer.id = `category-${categoryId}`;
@@ -185,12 +204,22 @@ function initializeRouteFilter() {
             itemDiv.appendChild(badge);
             itemDiv.appendChild(label);
             categoryContainer.appendChild(itemDiv);
+
+            itemDiv.addEventListener('mouseenter', () => {
+                mapRenderer.highlightRoute(route.route_id, true);
+            });
+            itemDiv.addEventListener('mouseleave', () => {
+                mapRenderer.highlightRoute(route.route_id, false);
+            });
+            itemDiv.addEventListener('click', (e) => {
+                if (e.target.type === 'checkbox') return;
+                mapRenderer.zoomToRoute(route.route_id);
+            });
         });
         
         routeCheckboxesContainer.appendChild(categoryContainer);
     });
     
-    // Ajouter les routes "autres" s'il y en a
     if (routesByCategory['autres'].length > 0) {
         const categoryHeader = document.createElement('div');
         categoryHeader.className = 'category-header';
@@ -241,12 +270,22 @@ function initializeRouteFilter() {
             itemDiv.appendChild(badge);
             itemDiv.appendChild(label);
             categoryContainer.appendChild(itemDiv);
+
+            itemDiv.addEventListener('mouseenter', () => {
+                mapRenderer.highlightRoute(route.route_id, true);
+            });
+            itemDiv.addEventListener('mouseleave', () => {
+                mapRenderer.highlightRoute(route.route_id, false);
+            });
+            itemDiv.addEventListener('click', (e) => {
+                if (e.target.type === 'checkbox') return;
+                mapRenderer.zoomToRoute(route.route_id);
+            });
         });
         
         routeCheckboxesContainer.appendChild(categoryContainer);
     }
-    
-    // Ajouter les événements pour les boutons de catégorie
+
     document.querySelectorAll('.btn-category-action').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const category = e.target.dataset.category;
@@ -282,20 +321,10 @@ function handleRouteFilterChange() {
 }
 
 function setupEventListeners() {
-    document.getElementById('btn-play').addEventListener('click', () => {
-        timeManager.play();
-    });
-    
-    document.getElementById('btn-pause').addEventListener('click', () => {
-        timeManager.pause();
-    });
-    
-    document.getElementById('btn-refresh').addEventListener('click', () => {
-        timeManager.reset();
-    });
     
     document.getElementById('close-instructions').addEventListener('click', () => {
         document.getElementById('instructions').classList.add('hidden');
+        localStorage.setItem('gtfsInstructionsShown', 'true');
     });
     
     document.getElementById('btn-toggle-filter').addEventListener('click', () => {
@@ -323,6 +352,66 @@ function setupEventListeners() {
     });
     
     timeManager.addListener(updateData);
+
+    /* MODIFICATION: Listeners pour la barre de recherche (inchangés) */
+    const searchBar = document.getElementById('search-bar');
+    const searchResultsContainer = document.getElementById('search-results');
+
+    searchBar.addEventListener('input', handleSearchInput);
+    searchBar.addEventListener('focus', handleSearchInput); 
+    
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-container')) {
+            searchResultsContainer.classList.add('hidden');
+        }
+    });
+}
+
+function handleSearchInput(e) {
+    const query = e.target.value.toLowerCase();
+    const searchResultsContainer = document.getElementById('search-results');
+
+    if (query.length < 2) {
+        searchResultsContainer.classList.add('hidden');
+        searchResultsContainer.innerHTML = '';
+        return;
+    }
+
+    const matches = dataManager.stops
+        .filter(stop => stop.stop_name.toLowerCase().includes(query))
+        .slice(0, 10); 
+
+    displaySearchResults(matches, query);
+}
+
+function displaySearchResults(stops, query) {
+    const searchResultsContainer = document.getElementById('search-results');
+    searchResultsContainer.innerHTML = '';
+
+    if (stops.length === 0) {
+        searchResultsContainer.innerHTML = `<div class="search-result-item">Aucun arrêt trouvé.</div>`;
+        searchResultsContainer.classList.remove('hidden');
+        return;
+    }
+
+    stops.forEach(stop => {
+        const item = document.createElement('div');
+        item.className = 'search-result-item';
+        
+        const regex = new RegExp(`(${query})`, 'gi');
+        item.innerHTML = stop.stop_name.replace(regex, '<strong>$1</strong>');
+        
+        item.addEventListener('click', () => onSearchResultClick(stop));
+        searchResultsContainer.appendChild(item);
+    });
+
+    searchResultsContainer.classList.remove('hidden');
+}
+
+function onSearchResultClick(stop) {
+    mapRenderer.zoomToStop(stop);
+    document.getElementById('search-bar').value = stop.stop_name;
+    document.getElementById('search-results').classList.add('hidden');
 }
 
 function updateData(timeInfo) {
@@ -335,11 +424,15 @@ function updateData(timeInfo) {
         .map(tripInfo => {
             const routeId = tripInfo.route?.route_id;
             const position = busPositionCalculator.calculatePosition(tripInfo.segment, routeId);
+            
+            /* MODIFICATION: Calcul du 'bearing' (angle) SUPPRIMÉ */
+            
             if (position) {
                 return {
                     tripId: tripInfo.tripId,
                     route: tripInfo.route,
                     position: position,
+                    // 'bearing' n'est plus transmis
                     segment: tripInfo.segment,
                     currentSeconds: currentSeconds
                 };
@@ -347,8 +440,9 @@ function updateData(timeInfo) {
             return null;
         })
         .filter(bus => bus !== null)
-        .filter(bus => visibleRoutes.has(bus.route.route_id));
+        .filter(bus => bus.route && visibleRoutes.has(bus.route.route_id)); 
     
+    // Le mapRenderer n'a plus besoin de 'bearing'
     mapRenderer.updateBusMarkers(busesWithPositions, tripScheduler, currentSeconds);
     
     const visibleBusCount = busesWithPositions.length;
@@ -394,8 +488,8 @@ function updateBusCount(visible, total) {
 
 function updateDataStatus(message, status = '') {
     const statusElement = document.getElementById('data-status');
-    statusElement.textContent = message;
     statusElement.className = status;
+    statusElement.textContent = message;
 }
 
 initializeApp();
