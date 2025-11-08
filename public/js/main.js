@@ -127,7 +127,7 @@ function checkAndSetupTimeMode() {
 function showModeBanner(message) { /* ... */ }
 function hideModeBanner() { /* ... */ }
 
-// Fonction initializeRouteFilter (inchangée, votre code est parfait)
+// Fonction initializeRouteFilter (inchangée)
 function initializeRouteFilter() {
     const routeCheckboxesContainer = document.getElementById('route-checkboxes');
     routeCheckboxesContainer.innerHTML = '';
@@ -238,9 +238,7 @@ function handleCategoryAction(category, action) {
     handleRouteFilterChange();
 }
 
-/**
- * MODIFIÉ: Quitte le mode itinéraire si on change les filtres
- */
+// Fonction handleRouteFilterChange (inchangée)
 function handleRouteFilterChange() {
     visibleRoutes.clear();
     
@@ -251,20 +249,16 @@ function handleRouteFilterChange() {
         }
     });
     
-    // NOUVEAU: Si l'utilisateur change les filtres, on quitte le mode itinéraire
     if (isPlannerMode) {
         exitPlannerMode();
     } else if (dataManager.geoJson) {
-        // Ne redessine que si on n'est PAS en mode planner
         mapRenderer.displayMultiColorRoutes(dataManager.geoJson, dataManager, visibleRoutes);
     }
     
     updateData();
 }
 
-/**
- * MODIFIÉ: Ajout des listeners pour le nouveau panneau
- */
+// Fonction setupEventListeners (inchangée)
 function setupEventListeners() {
     
     document.getElementById('close-instructions').addEventListener('click', () => {
@@ -274,7 +268,6 @@ function setupEventListeners() {
     
     document.getElementById('btn-toggle-filter').addEventListener('click', () => {
         document.getElementById('route-filter-panel').classList.toggle('hidden');
-        // Cache l'autre panneau s'il est ouvert
         document.getElementById('planner-panel').classList.add('hidden');
         if (isPlannerMode) exitPlannerMode();
     });
@@ -283,15 +276,12 @@ function setupEventListeners() {
         document.getElementById('route-filter-panel').classList.add('hidden');
     });
 
-    // NOUVEAU: Gérer l'ouverture/fermeture du panneau de planification
     document.getElementById('btn-toggle-planner').addEventListener('click', () => {
         document.getElementById('planner-panel').classList.toggle('hidden');
-        // Cache l'autre panneau s'il est ouvert
         document.getElementById('route-filter-panel').classList.add('hidden');
     });
     document.getElementById('close-planner').addEventListener('click', () => {
         document.getElementById('planner-panel').classList.add('hidden');
-        // Si on ferme le panneau, on quitte le mode itinéraire
         if (isPlannerMode) {
             exitPlannerMode();
         }
@@ -329,7 +319,7 @@ function setupEventListeners() {
 
     if (mapRenderer && mapRenderer.map) {
         mapRenderer.map.on('zoomend', () => {
-            if (dataManager && !isPlannerMode) { // Ne pas redessiner les arrêts en mode planner
+            if (dataManager && !isPlannerMode) { 
                 mapRenderer.displayStops();
             }
         });
@@ -376,44 +366,38 @@ function onSearchResultClick(stop) {
 
 
 // =============================================
-// NOUVEAU: GESTION DE L'ITINÉRAIRE
+// GESTION DE L'ITINÉRAIRE (MODIFIÉE)
 // =============================================
 
-/**
- * NOUVEAU: Fonction pour réinitialiser la carte en mode "visualisation"
- */
+// Fonction showDefaultMap (inchangée)
 function showDefaultMap() {
     isPlannerMode = false;
-    // Affiche toutes les routes GTFS
     if (dataManager.geoJson) {
         mapRenderer.displayMultiColorRoutes(dataManager.geoJson, dataManager, visibleRoutes);
     }
-    // Affiche les bus
     mapRenderer.showBusMarkers();
-    // Affiche les arrêts
     mapRenderer.displayStops();
 }
 
-/**
- * NOUVEAU: Fonction pour quitter le mode "planification"
- */
+// Fonction exitPlannerMode (inchangée)
 function exitPlannerMode() {
     isPlannerMode = false;
-    mapRenderer.clearItinerary(); // Efface le tracé A->B
-    showDefaultMap(); // Réaffiche les routes, bus, et arrêts
-    // Cache le panneau de planification
+    mapRenderer.clearItinerary(); 
+    showDefaultMap(); 
     document.getElementById('planner-panel').classList.add('hidden');
 }
 
 /**
- * NOUVEAU: Fonction principale appelée par le plannerPanel pour lancer une recherche
+ * ===================================================================
+ * FONCTION MODIFIÉE pour un meilleur rendu visuel
+ * ===================================================================
  */
 async function handleItineraryRequest(fromPlace, toPlace) {
     console.log(`Demande d'itinéraire de ${fromPlace} à ${toPlace}`);
     isPlannerMode = true;
     
     try {
-        // 1. Demander l'itinéraire à notre proxy Vercel
+        // 1. Demander l'itinéraire
         const itineraryData = await routingService.getItinerary(fromPlace, toPlace);
 
         if (itineraryData.status !== 'OK' || !itineraryData.routes || itineraryData.routes.length === 0) {
@@ -425,20 +409,75 @@ async function handleItineraryRequest(fromPlace, toPlace) {
             return;
         }
 
-        const route = itineraryData.routes[0]; // On prend le meilleur
+        const route = itineraryData.routes[0];
+        const leg = route.legs[0]; // Le trajet A->B
 
         // 2. Nettoyer la carte
-        mapRenderer.clearAllRoutes(); // Efface les tracés GTFS
-        mapRenderer.hideBusMarkers(); // Cache les bus en temps réel
-        mapRenderer.clearStops();     // Cache les arrêts
+        mapRenderer.clearAllRoutes(); 
+        mapRenderer.hideBusMarkers(); 
+        mapRenderer.clearStops();     
+        mapRenderer.clearItinerary(); // Important: efface l'ancien tracé
         
-        // 3. Dessiner le nouveau tracé (Google le fournit)
-        const polyline = route.overview_polyline.points;
-        const decodedCoords = routingService.decodePolyline(polyline);
+        // 3. DESSINER LE NOUVEAU TRACÉ (LOGIQUE AMÉLIORÉE)
         
-        mapRenderer.drawItinerary(decodedCoords, route.legs[0]); // On passe le "leg"
+        const allCoords = []; // Pour stocker toutes les coordonnées et zoomer dessus
 
-        // 4. Afficher les instructions
+        leg.steps.forEach(step => {
+            // Décode la polyligne pour CETTE étape
+            const stepCoords = routingService.decodePolyline(step.polyline.points);
+            allCoords.push(...stepCoords);
+
+            let style = {};
+
+            if (step.travel_mode === 'WALKING') {
+                // Style pour la marche: gris, pointillés
+                style = {
+                    color: '#6c757d', // Un gris
+                    weight: 4,
+                    opacity: 0.8,
+                    dashArray: '5, 10' // Pointillés
+                };
+            } else if (step.travel_mode === 'TRANSIT') {
+                // Style pour le bus: couleur de la ligne, épais
+                const transitColor = step.transit_details.line.color || '#2563eb'; // Couleur de la ligne ou bleu par défaut
+                style = {
+                    color: transitColor,
+                    weight: 6,
+                    opacity: 0.9
+                };
+            } else {
+                // Style par défaut (au cas où)
+                style = { color: '#2563eb', weight: 5 };
+            }
+
+            // Dessine l'étape sur la couche d'itinéraire du mapRenderer
+            // (L est global car chargé via <script> dans index.html)
+            L.polyline(stepCoords, style).addTo(mapRenderer.itineraryLayer);
+        });
+
+        // 4. AJOUTER LES MARQUEURS DÉPART/ARRIVÉE
+        
+        const startPoint = [leg.start_location.lat, leg.start_location.lng];
+        L.marker(startPoint, { 
+            icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
+        })
+        .addTo(mapRenderer.itineraryLayer)
+        .bindPopup(`<b>Départ:</b> ${leg.start_address}`);
+
+        const endPoint = [leg.end_location.lat, leg.end_location.lng];
+         L.marker(endPoint, { 
+            icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
+        })
+        .addTo(mapRenderer.itineraryLayer)
+        .bindPopup(`<b>Arrivée:</b> ${leg.end_address}`);
+
+        // 5. ZOOMER SUR L'ENSEMBLE DU TRAJET
+        if (allCoords.length > 0) {
+            const bounds = L.latLngBounds(allCoords);
+            mapRenderer.map.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+        // 6. Afficher les instructions dans le panneau
         plannerPanel.displayItinerary(itineraryData);
 
     } catch (error) {
@@ -447,14 +486,17 @@ async function handleItineraryRequest(fromPlace, toPlace) {
         isPlannerMode = false;
     }
 }
+/**
+ * ===================================================================
+ * FIN DES MODIFICATIONS
+ * ===================================================================
+ */
 
 /**
  * MODIFIÉ: Fonction de mise à jour principale
  */
 function updateData(timeInfo) {
-    // NOUVEAU: Si on est en mode planification, on ne met pas à jour les bus
     if (isPlannerMode) {
-        // On met quand même l'horloge à jour
         const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
         updateClock(currentSeconds);
         return; 
