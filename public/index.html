@@ -8,19 +8,23 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
           crossorigin=""/>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
             integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
             crossorigin=""></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.1/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet.markercluster@1.5.1/dist/leaflet.markercluster.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 
     <link rel="stylesheet" href="style.css">
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=VOTRE_CLÉ_FRONTEND_AVEC_RESTRICTIONS_HTTP&libraries=places&callback=initMap" 
+            async defer></script>
+
 </head>
 <body>
     
@@ -105,7 +109,8 @@
     </div>
 
     <div id="planner-panel" class="hidden">
-        <div class="panel-handle"></div> <div class="filter-header">
+        <div class="panel-handle"></div>
+        <div class="filter-header">
             <h3>Calculer un itinéraire</h3>
             <button id="close-planner" class="btn-close">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -117,14 +122,14 @@
         <div class="planner-inputs">
             <div class="input-group">
                 <label for="planner-from">Départ</label>
-                <input type="text" id="planner-from" placeholder="lat,lon ou adresse" value="45.1833,0.7167">
+                <input type="text" id="planner-from" placeholder="Ex: Mairie de Marsac" autocomplete="off">
                 <button id="btn-use-location" class="btn-icon" title="Utiliser ma position">
                     <span class="material-icons">my_location</span>
                 </button>
             </div>
             <div class="input-group">
                 <label for="planner-to">Arrivée</label>
-                <input type="text" id="planner-to" placeholder="lat,lon ou adresse" value="45.1900,0.7200">
+                <input type="text" id="planner-to" placeholder="Ex: Campus Périgord" autocomplete="off">
             </div>
             <button id="btn-search-itinerary" class="btn btn-primary" style="width: 100%; margin-top: 10px; padding: 0.75rem;">
                 Rechercher
@@ -169,5 +174,11 @@
     <script type="module" src="js/routingService.js"></script>
     <script type="module" src="js/plannerPanel.js"></script>
     <script type="module" src="js/main.js"></script>
+
+    <script>
+        function initMap() {
+            console.log("Google Maps JS (Frontend) est prêt.");
+        }
+    </script>
 </body>
 </html>
