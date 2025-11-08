@@ -3,8 +3,8 @@
  *
  * VERSION SÉCURISÉE
  *
- * CORRECTION : Ajoute "departure_time=now" pour forcer
- * l'API à calculer le trajet en partant de MAINTENANT.
+ * CORRECTION : La fonction formatPlace ajoute seulement ", Dordogne"
+ * pour éviter les conflits entre les noms de villes (ex: Boulazac et Périgueux).
  */
 
 // Fonction simple pour vérifier si c'est des coordonnées
@@ -14,12 +14,13 @@ function isCoordinates(input) {
     return !isNaN(parts[0]) && !isNaN(parts[1]);
 }
 
-// Fonction pour formater l'adresse
+// --- FONCTION CORRIGÉE ---
 function formatPlace(input) {
     if (isCoordinates(input)) {
-        return input;
+        return input; // C'est déjà des coordonnées, on ne touche pas
     }
-    return `${input}, Périgueux, Dordogne`;
+    // On ajoute seulement ", Dordogne" pour le contexte, sans "Périgueux"
+    return `${input}, Dordogne`;
 }
 
 export default async function handler(request, response) {
@@ -37,11 +38,8 @@ export default async function handler(request, response) {
     const fromPlace = formatPlace(from);
     const toPlace = formatPlace(to);
 
-    // --- CORRECTION DE L'HEURE ---
-    // 1. On récupère l'heure actuelle en secondes (temps "Unix")
     const nowInSeconds = Math.floor(Date.now() / 1000);
 
-    // 2. On ajoute "&departure_time=" à l'URL
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${fromPlace}&destination=${toPlace}&mode=transit&transit_mode=bus&departure_time=${nowInSeconds}&key=${apiKey}&language=fr`;
 
     try {
