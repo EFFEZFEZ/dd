@@ -11,7 +11,7 @@ export default async function handler(request, response) {
 
     // !! NON SÉCURISÉ !!
     // TA VRAIE CLÉ EST ICI (celle qui finit par WI4)
-    const apiKey = "AIzaSyBYDN_8hSHSx_irp_fxLw-XyxuLiixaWI4"; // <--- CORRIGÉ
+    const apiKey = "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4"; // <--- CORRIGÉ
 
     // Cette ligne de test est maintenant FAUSSE, donc le code continue
     if (apiKey === "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4") { 
