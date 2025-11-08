@@ -1,20 +1,20 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * C'est une Fonction Serverless Vercel. Elle seule s'exécute "côté serveur".
- * Elle récupère la clé API secrète depuis les variables d'environnement
- * de Vercel (process.env) et appelle Google en toute sécurité.
+ * ATTENTION : VERSION NON SÉCURISÉE
+ * La clé API est écrite en dur dans ce fichier.
+ * Elle sera visible publiquement sur GitHub.
  */
 export default async function handler(request, response) {
     // Récupère les ?from= et ?to= de l'URL de la requête
     const { from, to } = request.query;
 
-    // !! SÉCURITÉ !!
-    // Récupère la clé API stockée sur Vercel, pas dans le code.
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    // !! NON SÉCURISÉ !!
+    // Collez votre clé API ici, entre les guillemets
+    const apiKey = "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4";
 
-    if (!apiKey) {
-        return response.status(500).json({ error: "Clé API non configurée sur le serveur." });
+    if (apiKey === "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4") {
+        return response.status(500).json({ error: "La clé API n'est pas configurée dans le fichier /api/calculer-itineraire.js" });
     }
     
     if (!from || !to) {
