@@ -10,10 +10,11 @@ export default async function handler(request, response) {
     const { from, to } = request.query;
 
     // !! NON SÉCURISÉ !!
-    // Collez votre clé API ici, entre les guillemets
-    const apiKey = "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4";
+    // TA VRAIE CLÉ EST ICI (celle qui finit par WI4)
+    const apiKey = "AIzaSyBYDN_8hSHSx_irp_fxLw-XyxuLiixaWI4"; // <--- CORRIGÉ
 
-    if (apiKey === "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4") {
+    // Cette ligne de test est maintenant FAUSSE, donc le code continue
+    if (apiKey === "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4") { 
         return response.status(500).json({ error: "La clé API n'est pas configurée dans le fichier /api/calculer-itineraire.js" });
     }
     
