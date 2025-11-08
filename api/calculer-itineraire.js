@@ -3,7 +3,9 @@
  *
  * VERSION SÉCURISÉE
  * Lit la clé API depuis les variables d'environnement Vercel.
- * Ajoute un contexte régional pour améliorer la recherche.
+ *
+ * CORRECTION : Ajoute "transit_mode=bus" pour forcer
+ * l'API à utiliser les bus locaux au lieu des trains (TER).
  */
 
 // Fonction simple pour vérifier si c'est des coordonnées
@@ -23,11 +25,7 @@ function formatPlace(input) {
 }
 
 export default async function handler(request, response) {
-    // Récupère les ?from= et ?to= de l'URL de la requête
     let { from, to } = request.query;
-
-    // --- SÉCURITÉ ---
-    // Lit la clé API secrète depuis Vercel
     const apiKey = process.env.BACKEND_API_KEY;
 
     if (!apiKey) {
@@ -38,12 +36,12 @@ export default async function handler(request, response) {
         return response.status(400).json({ error: "Coordonnées de départ et d'arrivée requises." });
     }
 
-    // --- CORRECTION "NOT FOUND" ---
-    // On ajoute le contexte à nos requêtes
     const fromPlace = formatPlace(from);
     const toPlace = formatPlace(to);
 
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${fromPlace}&destination=${toPlace}&mode=transit&key=${apiKey}&language=fr`;
+    // --- CORRECTION DE LOGIQUE (TER vs BUS) ---
+    // On ajoute "&transit_mode=bus" pour ignorer les trains
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${fromPlace}&destination=${toPlace}&mode=transit&transit_mode=bus&key=${apiKey}&language=fr`;
 
     try {
         const res = await fetch(url);
