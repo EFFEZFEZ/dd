@@ -3,6 +3,9 @@
  *
  * Gère le panneau latéral et affiche les résultats
  * de l'API Google Directions.
+ *
+ * CORRECTION : displayItinerary gère les itinéraires
+ * sans heure de départ/arrivée (ex: marche seule).
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -57,7 +60,7 @@ export class PlannerPanel {
 
     showError(message) {
         this.hideLoading();
-        this.summaryContainer.innerHTML = `<p style="color: red;">${message}</p>`;
+        this.summaryContainer.innerHTML = `<p style="color: red; padding: 0 1.5rem;">${message}</p>`;
     }
 
     /**
@@ -68,7 +71,7 @@ export class PlannerPanel {
         this.stepsContainer.innerHTML = '';
 
         if (!itineraryData.routes || itineraryData.routes.length === 0) {
-            this.showError("Aucun itinéraire en transport en commun trouvé.");
+            this.showError("Aucun itinéraire trouvé.");
             return;
         }
 
@@ -77,12 +80,21 @@ export class PlannerPanel {
 
         // 1. Résumé
         const duration = this.dataManager.formatDuration(leg.duration.value);
+        
+        // --- CORRECTION ICI ---
+        // On utilise l'accès optionnel (?.) car un trajet
+        // à pied n'a pas de .departure_time ou .arrival_time
+        const departureText = leg.departure_time?.text;
+        const arrivalText = leg.arrival_time?.text;
+
         this.summaryContainer.innerHTML = `
             <h4>Le plus rapide : ${duration}</h4>
-            <p>
-                ${leg.departure_time.text} &ndash; ${leg.arrival_time.text}
-            </p>
+            ${ (departureText && arrivalText) ? // N'affiche la ligne que si les infos existent
+                `<p>${departureText} &ndash; ${arrivalText}</p>` :
+                '' 
+            }
         `;
+        // --- FIN DE LA CORRECTION ---
 
         // 2. Étapes (Steps)
         leg.steps.forEach(step => {
@@ -97,7 +109,8 @@ export class PlannerPanel {
         el.dataset.mode = step.travel_mode;
 
         const legDuration = step.duration.text;
-        const startTime = step.departure_time ? step.departure_time.text : '';
+        // CORRECTION : S'assurer que departure_time existe
+        const startTime = step.departure_time?.text || '';
 
         let icon, details;
 
@@ -112,12 +125,11 @@ export class PlannerPanel {
             const transit = step.transit_details;
             const line = transit.line;
             const routeColor = line.color || '#333';
-            // Google ne fournit pas toujours la couleur du texte, on la calcule
             const textColor = this.getContrastColor(routeColor);
 
             details = `
                 <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.departure_stop.name}</strong></div>
-                <div class="leg-route">
+                <div class.leg-route">
                     <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
                         ${line.short_name || line.name}
                     </span>
@@ -151,6 +163,11 @@ export class PlannerPanel {
     getContrastColor(hexcolor) {
         if (!hexcolor) return '#000000';
         hexcolor = hexcolor.replace("#", "");
+        if (hexcolor.length === 3) {
+            hexcolor = hexcolor.split('').map(c => c + c).join('');
+        }
+        if (hexcolor.length !== 6) return '#000000';
+        
         const r = parseInt(hexcolor.substr(0, 2), 16);
         const g = parseInt(hexcolor.substr(2, 2), 16);
         const b = parseInt(hexcolor.substr(4, 2), 16);
