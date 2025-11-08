@@ -4,8 +4,7 @@
  * Gère le panneau latéral et affiche les résultats
  * de l'API Google Directions.
  *
- * CORRECTION : displayItinerary gère les itinéraires
- * sans heure de départ/arrivée (ex: marche seule).
+ * NOUVEAU : Ajout de l'autocomplétion Google Places
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -24,6 +23,57 @@ export class PlannerPanel {
         this.stepsContainer = document.getElementById('itinerary-steps');
 
         this.bindEvents();
+        
+        // NOUVEAU: Initialiser l'autocomplétion
+        this.initAutocomplete(); 
+    }
+    
+    // =============================================
+    // NOUVEAU: Fonction pour les suggestions
+    // =============================================
+    initAutocomplete() {
+        // Coordonnées de Périgueux pour centrer la recherche
+        const center = { lat: 45.1833, lng: 0.7167 };
+        // Un rayon de 30km autour du centre
+        const defaultBounds = {
+            north: center.lat + 0.3,
+            south: center.lat - 0.3,
+            east: center.lng + 0.3,
+            west: center.lng - 0.3,
+        };
+        
+        const options = {
+            bounds: defaultBounds,
+            componentRestrictions: { country: "fr" }, // Limite à la France
+            strictBounds: false, // Permet de chercher en dehors, mais favorise la zone
+            fields: ["name", "formatted_address", "geometry"],
+        };
+        
+        // Attache l'autocomplétion au champ "Départ"
+        const fromAutocomplete = new google.maps.places.Autocomplete(this.fromInput, options);
+        
+        // Attache l'autocomplétion au champ "Arrivée"
+        const toAutocomplete = new google.maps.places.Autocomplete(this.toInput, options);
+
+        // Astuce : Quand on clique sur une suggestion, on veut garder
+        // le nom simple (ex: "Mairie de Marsac") et pas l'adresse complète.
+        fromAutocomplete.addListener('place_changed', () => {
+            const place = fromAutocomplete.getPlace();
+            if (place.geometry) {
+                // Si l'utilisateur choisit une suggestion, on utilise
+                // les coordonnées précises, c'est mieux.
+                const loc = place.geometry.location;
+                this.fromInput.value = `${loc.lat()},${loc.lng()}`;
+            }
+        });
+        
+        toAutocomplete.addListener('place_changed', () => {
+             const place = toAutocomplete.getPlace();
+             if (place.geometry) {
+                const loc = place.geometry.location;
+                this.toInput.value = `${loc.lat()},${loc.lng()}`;
+            }
+        });
     }
 
     bindEvents() {
@@ -81,20 +131,16 @@ export class PlannerPanel {
         // 1. Résumé
         const duration = this.dataManager.formatDuration(leg.duration.value);
         
-        // --- CORRECTION ICI ---
-        // On utilise l'accès optionnel (?.) car un trajet
-        // à pied n'a pas de .departure_time ou .arrival_time
         const departureText = leg.departure_time?.text;
         const arrivalText = leg.arrival_time?.text;
 
         this.summaryContainer.innerHTML = `
             <h4>Le plus rapide : ${duration}</h4>
-            ${ (departureText && arrivalText) ? // N'affiche la ligne que si les infos existent
+            ${ (departureText && arrivalText) ?
                 `<p>${departureText} &ndash; ${arrivalText}</p>` :
                 '' 
             }
         `;
-        // --- FIN DE LA CORRECTION ---
 
         // 2. Étapes (Steps)
         leg.steps.forEach(step => {
@@ -109,7 +155,6 @@ export class PlannerPanel {
         el.dataset.mode = step.travel_mode;
 
         const legDuration = step.duration.text;
-        // CORRECTION : S'assurer que departure_time existe
         const startTime = step.departure_time?.text || '';
 
         let icon, details;
@@ -129,7 +174,7 @@ export class PlannerPanel {
 
             details = `
                 <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.departure_stop.name}</strong></div>
-                <div class.leg-route">
+                <div class="leg-route">
                     <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
                         ${line.short_name || line.name}
                     </span>
