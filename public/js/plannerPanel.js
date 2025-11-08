@@ -4,7 +4,10 @@
  * Gère le panneau latéral et affiche les résultats
  * de l'API Google Directions.
  *
- * NOUVEAU : Ajout de l'autocomplétion Google Places
+ * CORRECTIONS :
+ * 1. Suggestions (Autocomplete) limitées STRICTEMENT à la zone.
+ * 2. Garde le nom du lieu dans le champ après sélection
+ * (ne remplace plus par des coordonnées).
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -22,33 +25,29 @@ export class PlannerPanel {
         this.summaryContainer = document.getElementById('itinerary-summary');
         this.stepsContainer = document.getElementById('itinerary-steps');
 
+        // Stocke les coordonnées si une suggestion est cliquée
+        this.fromCoords = null;
+        this.toCoords = null;
+
         this.bindEvents();
         
-        // NOUVEAU: Initialiser l'autocomplétion
-        // On attend que l'API Google soit chargée
+        // Initialiser l'autocomplétion
         window.initMap = () => {
             console.log("Google Maps JS est prêt, initialisation de l'autocomplete.");
             this.initAutocomplete(); 
         };
-        // Si c'est déjà chargé (au cas où)
         if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
             this.initAutocomplete();
         }
     }
     
-    // =============================================
-    // NOUVEAU: Fonction pour les suggestions
-    // =============================================
     initAutocomplete() {
-        // S'assurer que l'API est bien chargée
         if (typeof google === 'undefined' || !google.maps.places) {
             console.warn("Google Places API n'est pas chargée. Les suggestions ne fonctionneront pas.");
             return;
         }
 
-        // Coordonnées de Périgueux pour centrer la recherche
-        const center = { lat: 45.1833, lng: 0.7167 };
-        // Un rayon de 30km autour du centre
+        const center = { lat: 45.1833, lng: 0.7167 }; // Périgueux
         const defaultBounds = {
             north: center.lat + 0.3,
             south: center.lat - 0.3,
@@ -58,27 +57,24 @@ export class PlannerPanel {
         
         const options = {
             bounds: defaultBounds,
-            componentRestrictions: { country: "fr" }, // Limite à la France
-            strictBounds: false, // Permet de chercher en dehors, mais favorise la zone
+            componentRestrictions: { country: "fr" },
+            // --- CORRECTION "UNIQUEMENT DORDOGNE" ---
+            strictBounds: true, // Force les résultats à être dans cette zone
             fields: ["name", "formatted_address", "geometry"],
         };
         
-        // Attache l'autocomplétion au champ "Départ"
         const fromAutocomplete = new google.maps.places.Autocomplete(this.fromInput, options);
-        
-        // Attache l'autocomplétion au champ "Arrivée"
         const toAutocomplete = new google.maps.places.Autocomplete(this.toInput, options);
 
-        // Quand on clique sur une suggestion, on utilise les coordonnées
+        // --- CORRECTION "GARDER LES NOMS" ---
         fromAutocomplete.addListener('place_changed', () => {
             const place = fromAutocomplete.getPlace();
             if (place.geometry) {
                 const loc = place.geometry.location;
-                this.fromInput.value = `${loc.lat()},${loc.lng()}`;
-            } else if (this.fromInput.value.trim() !== '') {
-                // Si l'utilisateur appuie sur Entrée sans choisir,
-                // on garde le texte (ex: "marsac")
-                // L'API backend ajoutera ", Dordogne"
+                // On stocke les coordonnées pour la recherche
+                this.fromCoords = `${loc.lat()},${loc.lng()}`;
+                // Mais on affiche le nom dans le champ
+                this.fromInput.value = place.name;
             }
         });
         
@@ -86,26 +82,38 @@ export class PlannerPanel {
              const place = toAutocomplete.getPlace();
              if (place.geometry) {
                 const loc = place.geometry.location;
-                this.toInput.value = `${loc.lat()},${loc.lng()}`;
+                this.toCoords = `${loc.lat()},${loc.lng()}`;
+                this.toInput.value = place.name;
             }
         });
+
+        // Si l'utilisateur tape sans choisir, on efface les coordonnées stockées
+        this.fromInput.addEventListener('input', () => { this.fromCoords = null; });
+        this.toInput.addEventListener('input', () => { this.toCoords = null; });
     }
 
     bindEvents() {
         this.searchButton.addEventListener('click', () => {
-            const from = this.fromInput.value;
-            const to = this.toInput.value;
+            // S'il y a des coordonnées stockées (clic sur suggestion), on les utilise
+            // Sinon, on utilise le texte tapé (ex: "marsac")
+            const from = this.fromCoords || this.fromInput.value;
+            const to = this.toCoords || this.toInput.value;
+
             if (from && to) {
                 this.showLoading();
                 this.searchCallback(from, to); // Appelle main.js
             }
+            // Réinitialiser après la recherche
+            this.fromCoords = null;
+            this.toCoords = null;
         });
 
         this.locateButton.addEventListener('click', () => {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
                 .on('locationfound', (e) => {
                     const coords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`;
-                    this.fromInput.value = coords;
+                    this.fromInput.value = "Ma position"; // Affiche "Ma position"
+                    this.fromCoords = coords; // Stocke les coordonnées
                 })
                 .on('locationerror', (e) => {
                     alert("Impossible de vous localiser.");
@@ -140,12 +148,10 @@ export class PlannerPanel {
             return;
         }
 
-        const route = itineraryData.routes[0]; // On prend la première option
-        const leg = route.legs[0]; // Le trajet A->B
+        const route = itineraryData.routes[0];
+        const leg = route.legs[0]; 
 
-        // 1. Résumé
         const duration = this.dataManager.formatDuration(leg.duration.value);
-        
         const departureText = leg.departure_time?.text;
         const arrivalText = leg.arrival_time?.text;
 
@@ -157,7 +163,6 @@ export class PlannerPanel {
             }
         `;
 
-        // 2. Étapes (Steps)
         leg.steps.forEach(step => {
             this.stepsContainer.appendChild(this.createLegStep(step));
         });
@@ -184,8 +189,9 @@ export class PlannerPanel {
             icon = 'directions_bus';
             const transit = step.transit_details;
             const line = transit.line;
+            // Utilise la couleur du badge fournie par l'API
             const routeColor = line.color || '#333';
-            const textColor = this.getContrastColor(routeColor);
+            const textColor = line.text_color || this.getContrastColor(routeColor);
 
             details = `
                 <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.departure_stop.name}</strong></div>
