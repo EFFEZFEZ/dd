@@ -1,0 +1,16 @@
+[build]
+  # Dis à Netlify que ton site web (index.html, js, css, data)
+  # se trouve dans le dossier "public".
+  publish = "public"
+  
+  # Dis à Netlify que tes fonctions serverless
+  # se trouvent dans le dossier "api".
+  functions = "api"
+
+# Règle de redirection (importante)
+# Elle s'assure que si on rafraîchit la page, 
+# le site fonctionne toujours.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
