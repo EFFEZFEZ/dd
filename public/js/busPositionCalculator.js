@@ -1,7 +1,7 @@
 /**
  * busPositionCalculator.js
- * 
- * Calcule les positions géographiques interpolées des bus entre deux arrêts
+ * * Calcule les positions géographiques interpolées des bus entre deux arrêts
+ * * CORRIGÉ: S'adapte au tripScheduler V3 (qui retourne 'segment' ou 'position')
  */
 
 export class BusPositionCalculator {
@@ -11,7 +11,6 @@ export class BusPositionCalculator {
 
     /**
      * Calcule la position interpolée d'un bus entre deux arrêts
-     * Utilise le tracé GeoJSON de la route si disponible, sinon interpolation linéaire
      */
     calculatePosition(segment, routeId = null) {
         if (!segment || !segment.fromStopInfo || !segment.toStopInfo) {
@@ -23,7 +22,6 @@ export class BusPositionCalculator {
         const toLat = parseFloat(segment.toStopInfo.stop_lat);
         const toLon = parseFloat(segment.toStopInfo.stop_lon);
 
-        // Vérifier que les coordonnées sont valides
         if (isNaN(fromLat) || isNaN(fromLon) || isNaN(toLat) || isNaN(toLon)) {
             console.warn('Coordonnées invalides pour les arrêts:', segment);
             return null;
@@ -42,14 +40,8 @@ export class BusPositionCalculator {
                     progress
                 );
                 if (position) {
-                    // Log pour confirmer que le tracé GeoJSON est utilisé
-                    if (Math.random() < 0.01) { // Log 1% du temps pour ne pas surcharger
-                        console.log(`✓ Bus suit le tracé GeoJSON de la route ${routeId}`);
-                    }
                     return position;
                 }
-            } else if (routeId && Math.random() < 0.01) {
-                console.log(`⚠️ Pas de tracé GeoJSON pour route ${routeId}, utilisation fallback linéaire`);
             }
         }
 
@@ -151,13 +143,11 @@ export class BusPositionCalculator {
         const toLat = parseFloat(segment.toStopInfo.stop_lat);
         const toLon = parseFloat(segment.toStopInfo.stop_lon);
 
-        // Convertir les coordonnées en radians pour les calculs trigonométriques
-        const fromLatRad = this.toRad(fromLat);
-        const fromLonRad = this.toRad(fromLon);
-        const toLatRad = this.toRad(toLat);
-        const toLonRad = this.toRad(toLon);
+        const fromLatRad = this.dataManager.toRad(fromLat);
+        const fromLonRad = this.dataManager.toRad(fromLon);
+        const toLatRad = this.dataManager.toRad(toLat);
+        const toLonRad = this.dataManager.toRad(toLon);
 
-        // Calcul de l'angle en degrés
         const dLon = toLonRad - fromLonRad;
         const y = Math.sin(dLon) * Math.cos(toLatRad);
         const x = Math.cos(fromLatRad) * Math.sin(toLatRad) -
@@ -172,12 +162,20 @@ export class BusPositionCalculator {
     /**
      * Calcule toutes les positions pour les bus actifs
      */
-    calculateAllPositions(activeBuses) {
-        return activeBuses.map(bus => {
-            // Passer le route_id pour utiliser le tracé GeoJSON
+    calculateAllPositions(allBuses) {
+        return allBuses.map(bus => {
             const routeId = bus.route?.route_id;
-            const position = this.calculatePosition(bus.segment, routeId);
-            const bearing = this.calculateBearing(bus.segment);
+            let position = null;
+            let bearing = 0;
+
+            if (bus.segment) {
+                // Cas 1: Bus en mouvement
+                position = this.calculatePosition(bus.segment, routeId);
+                bearing = this.calculateBearing(bus.segment);
+            } else if (bus.position) {
+                // Cas 2: Bus en attente à un arrêt (fourni par tripScheduler)
+                position = bus.position;
+            }
 
             if (!position) {
                 return null;
@@ -186,34 +184,8 @@ export class BusPositionCalculator {
             return {
                 ...bus,
                 position,
-                bearing
+                bearing 
             };
         }).filter(bus => bus !== null);
-    }
-
-    /**
-     * Calcule la distance entre deux points (formule de Haversine)
-     * Utile pour des optimisations futures
-     */
-    calculateDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // Rayon de la Terre en km
-        const dLat = this.toRad(lat2 - lat1);
-        const dLon = this.toRad(lon2 - lon1);
-        
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = R * c;
-        
-        return distance;
-    }
-
-    /**
-     * Convertit des degrés en radians
-     */
-    toRad(degrees) {
-        return degrees * Math.PI / 180;
     }
 }

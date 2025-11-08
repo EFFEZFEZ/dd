@@ -1,7 +1,6 @@
 /**
  * timeManager.js
- * 
- * Gère le temps réel ou simulé pour l'affichage des bus en circulation
+ * * Gère le temps réel ou simulé pour l'affichage des bus en circulation
  */
 
 export class TimeManager {
@@ -11,13 +10,19 @@ export class TimeManager {
         this.mode = 'real';
         this.simulatedSeconds = null;
         this.lastTickTime = null;
+        
+        /* AJOUT: Stocke la date actuelle pour la logique du calendrier */
+        this.currentDate = new Date(); 
     }
 
     /**
      * Récupère l'heure réelle actuelle
      */
     getRealTime() {
-        const now = new Date();
+        /* MODIFICATION: Met à jour la date en même temps */
+        this.currentDate = new Date();
+        const now = this.currentDate;
+        
         const hours = now.getHours();
         const minutes = now.getMinutes();
         const seconds = now.getSeconds();
@@ -35,6 +40,10 @@ export class TimeManager {
         }
         this.mode = mode;
         console.log(`🔧 Mode changé: ${mode}`);
+        
+        // S'assure que la date est celle d'aujourd'hui, même en simulation
+        this.currentDate = new Date(); 
+        
         this.notifyListeners();
     }
 
@@ -44,6 +53,10 @@ export class TimeManager {
     setTime(seconds) {
         this.simulatedSeconds = seconds;
         this.lastTickTime = Date.now();
+        
+        // En mode simulation, on utilise TOUJOURS la date d'aujourd'hui
+        this.currentDate = new Date(); 
+        
         console.log(`⏰ Heure simulée définie: ${this.formatTime(seconds)}`);
         this.notifyListeners();
     }
@@ -55,6 +68,8 @@ export class TimeManager {
         if (!this.isRunning) {
             this.isRunning = true;
             this.lastTickTime = Date.now();
+            // S'assure que la date est à jour au démarrage
+            this.currentDate = new Date(); 
             this.tick();
             console.log(`▶️ Mode ${this.mode === 'simulated' ? 'simulation' : 'temps réel'} démarré`);
         }
@@ -74,6 +89,7 @@ export class TimeManager {
     reset() {
         console.log('🔄 Rechargement');
         this.lastTickTime = Date.now();
+        this.currentDate = new Date(); // Réinitialise la date
         this.notifyListeners();
     }
 
@@ -91,7 +107,14 @@ export class TimeManager {
             if (this.simulatedSeconds >= 86400) {
                 this.simulatedSeconds = 0;
             }
+            // En simulation, la date est fixée (celle d'aujourd'hui)
+            // On ne met PAS à jour this.currentDate ici
+            
+        } else {
+            // En mode réel, on met à jour la date à chaque tick
+            this.currentDate = new Date();
         }
+        
         this.lastTickTime = now;
 
         this.notifyListeners();
@@ -111,12 +134,16 @@ export class TimeManager {
      */
     notifyListeners() {
         const currentSeconds = this.getCurrentSeconds();
+        
+        // En mode réel, la date est mise à jour dans getRealTime() ou tick()
+        // En mode simulé, la date est celle d'aujourd'hui (fixée dans setMode/setTime/play)
+        
         const timeInfo = {
             seconds: currentSeconds,
             timeString: this.formatTime(currentSeconds),
             isRunning: this.isRunning,
             mode: this.mode,
-            date: new Date()
+            date: this.currentDate // Utilise la date stockée
         };
 
         this.listeners.forEach(callback => {
@@ -143,6 +170,19 @@ export class TimeManager {
             return this.simulatedSeconds;
         }
         return this.getRealTime();
+    }
+
+    /* NOUVELLE FONCTION */
+    /**
+     * Récupère la date actuelle (réelle ou de simulation)
+     */
+    getCurrentDate() {
+        // Si le timeManager n'est pas en cours, s'assurer que la date est fraîche
+        if (!this.isRunning && this.mode === 'real') {
+            this.currentDate = new Date();
+        }
+        // En mode simulation, la date est déjà celle d'aujourd'hui
+        return this.currentDate;
     }
 
     /**
