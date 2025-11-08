@@ -2,10 +2,9 @@
  * Fichier : /api/calculer-itineraire.js
  *
  * VERSION SÉCURISÉE
- * Lit la clé API depuis les variables d'environnement Vercel.
  *
- * CORRECTION : Ajoute "transit_mode=bus" pour forcer
- * l'API à utiliser les bus locaux au lieu des trains (TER).
+ * CORRECTION : Ajoute "departure_time=now" pour forcer
+ * l'API à calculer le trajet en partant de MAINTENANT.
  */
 
 // Fonction simple pour vérifier si c'est des coordonnées
@@ -18,9 +17,8 @@ function isCoordinates(input) {
 // Fonction pour formater l'adresse
 function formatPlace(input) {
     if (isCoordinates(input)) {
-        return input; // C'est déjà des coordonnées, on ne touche pas
+        return input;
     }
-    // Si c'est du texte, on ajoute le contexte
     return `${input}, Périgueux, Dordogne`;
 }
 
@@ -39,9 +37,12 @@ export default async function handler(request, response) {
     const fromPlace = formatPlace(from);
     const toPlace = formatPlace(to);
 
-    // --- CORRECTION DE LOGIQUE (TER vs BUS) ---
-    // On ajoute "&transit_mode=bus" pour ignorer les trains
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${fromPlace}&destination=${toPlace}&mode=transit&transit_mode=bus&key=${apiKey}&language=fr`;
+    // --- CORRECTION DE L'HEURE ---
+    // 1. On récupère l'heure actuelle en secondes (temps "Unix")
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+
+    // 2. On ajoute "&departure_time=" à l'URL
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${fromPlace}&destination=${toPlace}&mode=transit&transit_mode=bus&departure_time=${nowInSeconds}&key=${apiKey}&language=fr`;
 
     try {
         const res = await fetch(url);
