@@ -25,13 +25,27 @@ export class PlannerPanel {
         this.bindEvents();
         
         // NOUVEAU: Initialiser l'autocomplétion
-        this.initAutocomplete(); 
+        // On attend que l'API Google soit chargée
+        window.initMap = () => {
+            console.log("Google Maps JS est prêt, initialisation de l'autocomplete.");
+            this.initAutocomplete(); 
+        };
+        // Si c'est déjà chargé (au cas où)
+        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+            this.initAutocomplete();
+        }
     }
     
     // =============================================
     // NOUVEAU: Fonction pour les suggestions
     // =============================================
     initAutocomplete() {
+        // S'assurer que l'API est bien chargée
+        if (typeof google === 'undefined' || !google.maps.places) {
+            console.warn("Google Places API n'est pas chargée. Les suggestions ne fonctionneront pas.");
+            return;
+        }
+
         // Coordonnées de Périgueux pour centrer la recherche
         const center = { lat: 45.1833, lng: 0.7167 };
         // Un rayon de 30km autour du centre
@@ -55,15 +69,16 @@ export class PlannerPanel {
         // Attache l'autocomplétion au champ "Arrivée"
         const toAutocomplete = new google.maps.places.Autocomplete(this.toInput, options);
 
-        // Astuce : Quand on clique sur une suggestion, on veut garder
-        // le nom simple (ex: "Mairie de Marsac") et pas l'adresse complète.
+        // Quand on clique sur une suggestion, on utilise les coordonnées
         fromAutocomplete.addListener('place_changed', () => {
             const place = fromAutocomplete.getPlace();
             if (place.geometry) {
-                // Si l'utilisateur choisit une suggestion, on utilise
-                // les coordonnées précises, c'est mieux.
                 const loc = place.geometry.location;
                 this.fromInput.value = `${loc.lat()},${loc.lng()}`;
+            } else if (this.fromInput.value.trim() !== '') {
+                // Si l'utilisateur appuie sur Entrée sans choisir,
+                // on garde le texte (ex: "marsac")
+                // L'API backend ajoutera ", Dordogne"
             }
         });
         
