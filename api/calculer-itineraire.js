@@ -3,20 +3,16 @@
  *
  * ATTENTION : VERSION NON SÉCURISÉE
  * La clé API est écrite en dur dans ce fichier.
- * Elle sera visible publiquement sur GitHub.
  */
 export default async function handler(request, response) {
     // Récupère les ?from= et ?to= de l'URL de la requête
     const { from, to } = request.query;
 
     // !! NON SÉCURISÉ !!
-    // TA VRAIE CLÉ EST ICI (celle qui finit par WI4)
-    const apiKey = "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4"; // <--- CORRIGÉ
+    // Ta VRAIE clé (avec les deux tirets)
+    const apiKey = "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4";
 
-    // Cette ligne de test est maintenant FAUSSE, donc le code continue
-    if (apiKey === "AIzaSyBYDN_8hSHSx_irp_fxLw--XyxuLiixaW4") { 
-        return response.status(500).json({ error: "La clé API n'est pas configurée dans le fichier /api/calculer-itineraire.js" });
-    }
+    // Le bloc "if" qui posait problème a été SUPPRIMÉ.
     
     if (!from || !to) {
         return response.status(400).json({ error: "Coordonnées de départ et d'arrivée requises." });
@@ -29,6 +25,7 @@ export default async function handler(request, response) {
         const data = await res.json();
 
         if (data.status !== 'OK') {
+            // C'est ici que Google renverra une erreur si la clé est VRAIMENT invalide
             console.error("Erreur API Google:", data.status, data.error_message);
             return response.status(500).json({ error: data.error_message || data.status, status: data.status });
         }
