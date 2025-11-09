@@ -1,11 +1,10 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * VERSION FINALE (CORRIGÉE v3)
+ * VERSION CORRIGÉE - Field Mask validé
  *
- * CORRECTION: Le 'X-Goog-FieldMask' a été entièrement
- * ré-écrit et corrigé pour ne plus causer d'INVALID_ARGUMENT.
- * Les 3 trajets, la couleur et le 'LESS_WALKING' sont conservés.
+ * CORRECTION: Le 'X-Goog-FieldMask' utilise maintenant
+ * les chemins corrects selon la documentation API Routes v2
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -103,8 +102,8 @@ export default async function handler(request) {
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': apiKey,
                 
-                // --- LE FIELD MASK CORRIGÉ ---
-                'X-Goog-FieldMask': 'routes.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.startAddress,routes.legs.endAddress,routes.legs.startLocation.latLng,routes.legs.endLocation.latLng,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.transitDetails.headsign,routes.legs.steps.transitDetails.stopCount,routes.legs.steps.transitDetails.line.shortName,routes.legs.steps.transitDetails.line.color,routes.legs.steps.transitDetails.line.textColor,routes.legs.steps.transitDetails.stopDetails.departureStop.name,routes.legs.steps.transitDetails.stopDetails.arrivalStop.name'
+                // --- FIELD MASK CORRIGÉ selon la doc API Routes v2 ---
+                'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.legs.duration,routes.legs.distanceMeters,routes.legs.startLocation,routes.legs.endLocation,routes.legs.steps.startLocation,routes.legs.steps.endLocation,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline,routes.legs.steps.navigationInstruction,routes.legs.steps.transitDetails'
             },
             body: JSON.stringify(requestBody)
         });
