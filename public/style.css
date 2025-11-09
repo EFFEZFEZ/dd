@@ -1106,3 +1106,26 @@ html, body {
     /* Cache le logo "Powered by Google" */
     display: none;
 }
+/* =========================================
+ * CORRECTIFS GLOBAUX
+ * ========================================= */
+
+/* Règle manquante pour masquer les éléments */
+.hidden {
+    display: none !important;
+}
+
+/* Force les nouveaux champs Google à s'afficher correctement */
+gmp-place-autocomplete {
+    display: block; /* S'assure qu'il prend toute la largeur */
+}
+
+gmp-place-autocomplete input {
+    /* Applique votre style d'input existant */
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-family: inherit;
+}
