@@ -1,11 +1,10 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * VERSION SÉCURISÉE & ROBUSTE (pour Netlify)
+ * VERSION FINALE SÉCURISÉE (pour Netlify)
  *
- * CORRECTION : L'erreur "response.status is not a function"
- * signifie que Netlify n'utilise pas le même objet 'response' que Vercel.
- * On doit 'return new Response(...)' au lieu d'appeler response.status().
+ * CORRECTION : Utilise 'return new Response' (compatible Netlify)
+ * et force '&transit_mode=bus' & '&departure_time=now'
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -27,12 +26,12 @@ function formatPlace(input) {
     return null;
 }
 
-// CORRECTION : La signature du handler Netlify est (request, context)
-// On n'a besoin que de 'request'.
 export default async function handler(request) {
     
+    // Message pour prouver que le NOUVEAU code s'exécute
+    console.log("Exécution de la fonction API v3 (Netlify) !");
+
     try {
-        // CORRECTION : On lit l'URL depuis l'objet 'request'
         const url = new URL(request.url);
         const from = url.searchParams.get('from');
         const to = url.searchParams.get('to');
@@ -40,6 +39,7 @@ export default async function handler(request) {
         const apiKey = process.env.BACKEND_API_KEY;
 
         if (!apiKey) {
+            console.error("Erreur 500 : BACKEND_API_KEY non trouvée.");
             return new Response(JSON.stringify({ error: "Clé API Backend non configurée sur le serveur Netlify." }), {
                 status: 500,
                 headers: { 'Content-Type': 'application/json' }
@@ -65,6 +65,7 @@ export default async function handler(request) {
 
         const nowInSeconds = Math.floor(Date.now() / 1000);
 
+        // L'URL FINALE qui résout tous tes problèmes
         const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${fromPlace}&destination=${toPlace}&mode=transit&transit_mode=bus&departure_time=${nowInSeconds}&key=${apiKey}&language=fr`;
 
         const res = await fetch(apiUrl);
@@ -78,15 +79,13 @@ export default async function handler(request) {
             });
         }
 
-        // Succès : on retourne la réponse de Google
         return new Response(JSON.stringify(data), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
         });
 
     } catch (error) {
-        // Erreur interne (crash)
-        console.error("Erreur interne non gérée dans la fonction API:", error);
+        console.error("Erreur interne (crash) dans la fonction API:", error);
         return new Response(JSON.stringify({ error: 'Erreur serveur interne. Vérifiez les logs Netlify.' }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' }
