@@ -4,7 +4,7 @@
  * Fichier principal de l'application.
  *
  * CORRECTION FINALE (v3) :
- * 1. L'appel à 'initializeApp()' est enveloppé dans un écouteur
+ * 1. L'appel à 'initializeApp()' EST ENVELOPPÉ dans un écouteur
  * 'DOMContentLoaded'.
  * 2. Cela garantit que le script attend que le HTML (ex: les boutons)
  * soit entièrement chargé avant d'essayer de leur attacher
@@ -20,7 +20,7 @@ import { MapRenderer } from './mapRenderer.js';
 
 // Imports des modules UI et Services
 import { RoutingService } from './routingService.js';
-import { PlannerPanel } from './plannerPanel.js'; 
+import { PlannerPanel } from './plannerPanel.js';
 
 // Variables globales de l'application
 let dataManager;
@@ -29,7 +29,7 @@ let tripScheduler;
 let busPositionCalculator;
 let mapRenderer;
 let visibleRoutes = new Set();
-let routingService; 
+let routingService;
 let plannerPanel;
 let isPlannerMode = false;
 
@@ -52,49 +52,50 @@ function getCategoryForRoute(routeShortName) {
 
 async function initializeApp() {
     dataManager = new DataManager();
-    
+
     try {
         await dataManager.loadAllData();
-        
+
         timeManager = new TimeManager();
-        
+
         mapRenderer = new MapRenderer('map', dataManager, timeManager);
         mapRenderer.initializeMap();
-        
+
         tripScheduler = new TripScheduler(dataManager);
         busPositionCalculator = new BusPositionCalculator(dataManager);
-        
+
         // Assigne l'objet importé
-        routingService = RoutingService; 
+        routingService = RoutingService;
 
         // Initialise le panneau de planification
+        // (Ceci est désormais sûr car initializeApp est différé)
         plannerPanel = new PlannerPanel(
-            'planner-panel', 
-            dataManager, 
-            mapRenderer, 
+            'planner-panel',
+            dataManager,
+            mapRenderer,
             handleItineraryRequest // Fonction 'callback'
         );
 
         initializeRouteFilter();
         showDefaultMap();
         mapRenderer.displayStops();
-        
-        // CETTE LIGNE NE PLANTERA PLUS
-        setupEventListeners(); 
-        
+
+        // (Ceci est désormais sûr)
+        setupEventListeners();
+
         if (localStorage.getItem('gtfsInstructionsShown') !== 'true') {
             document.getElementById('instructions').classList.remove('hidden');
         }
-        
+
         updateDataStatus('Données chargées', 'loaded');
         checkAndSetupTimeMode();
-        updateData(); 
-        
+        updateData();
+
     } catch (error) {
-        // Logique de 'catch' (conforme à l'analyse)
+        // La capture d'erreur qui affiche l'écran blanc
         console.error('Erreur lors de l\'initialisation:', error);
         updateDataStatus('Erreur de chargement', 'error');
-        // Affiche une erreur claire à l'utilisateur
+        
         const body = document.querySelector('body');
         body.innerHTML = `<div class="init-error" style="padding: 20px; text-align: center; color: #dc2626;">
             <h1>Erreur de l'application</h1>
@@ -259,7 +260,7 @@ function setupEventListeners() {
     const searchBar = document.getElementById('search-bar');
     const searchResultsContainer = document.getElementById('search-results');
     searchBar.addEventListener('input', handleSearchInput);
-    searchBar.addEventListener('focus', handleSearchInput); 
+    searchBar.addEventListener('focus', handleSearchInput);
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-container')) {
             searchResultsContainer.classList.add('hidden');
@@ -267,7 +268,7 @@ function setupEventListeners() {
     });
     if (mapRenderer && mapRenderer.map) {
         mapRenderer.map.on('zoomend', () => {
-            if (dataManager && !isPlannerMode) { 
+            if (dataManager && !isPlannerMode) {
                 mapRenderer.displayStops();
             }
         });
@@ -285,7 +286,7 @@ function handleSearchInput(e) {
     }
     const matches = dataManager.masterStops
         .filter(stop => stop.stop_name.toLowerCase().includes(query))
-        .slice(0, 10); 
+        .slice(0, 10);
     displaySearchResults(matches, query);
 }
 function displaySearchResults(stops, query) {
@@ -323,8 +324,8 @@ function showDefaultMap() {
 }
 function exitPlannerMode() {
     isPlannerMode = false;
-    mapRenderer.clearItinerary(); 
-    showDefaultMap(); 
+    mapRenderer.clearItinerary();
+    showDefaultMap();
     document.getElementById('planner-panel').classList.add('hidden');
 }
 
@@ -336,7 +337,7 @@ function exitPlannerMode() {
 async function handleItineraryRequest(options) {
     console.log(`Demande d'itinéraire...`);
     isPlannerMode = true;
-    
+
     try {
         const itineraryData = await routingService.getItinerary(options);
 
@@ -348,14 +349,14 @@ async function handleItineraryRequest(options) {
         }
 
         const route = itineraryData.routes[0];
-        const leg = route.legs[0]; 
+        const leg = route.legs[0];
 
-        mapRenderer.clearAllRoutes(); 
-        mapRenderer.hideBusMarkers(); 
-        mapRenderer.clearStops();     
-        mapRenderer.clearItinerary(); 
-        
-        const allCoords = []; 
+        mapRenderer.clearAllRoutes();
+        mapRenderer.hideBusMarkers();
+        mapRenderer.clearStops();
+        mapRenderer.clearItinerary();
+
+        const allCoords = [];
 
         leg.steps.forEach(step => {
             if (!step || !step.polyline || !step.polyline.encodedPolyline) {
@@ -371,7 +372,7 @@ async function handleItineraryRequest(options) {
             if (step.travelMode === 'WALK') {
                 style = { color: '#6c757d', weight: 4, opacity: 0.8, dashArray: '5, 10' };
             } else if (step.travelMode === 'TRANSIT') {
-                let transitColor = '#2563eb'; 
+                let transitColor = '#2563eb';
                 if (step.transitDetails && step.transitDetails.line && step.transitDetails.line.color) {
                     transitColor = step.transitDetails.line.color;
                 }
@@ -379,23 +380,23 @@ async function handleItineraryRequest(options) {
             } else {
                 style = { color: '#6c757d', weight: 4 };
             }
-            
+
             L.polyline(stepCoords, style).addTo(mapRenderer.itineraryLayer);
         });
 
         const startPoint = [leg.startLocation.latLng.latitude, leg.startLocation.latLng.longitude];
-        L.marker(startPoint, { 
+        L.marker(startPoint, {
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
-        .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
+            .addTo(mapRenderer.itineraryLayer)
+            .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
 
         const endPoint = [leg.endLocation.latLng.latitude, leg.endLocation.latLng.longitude];
-         L.marker(endPoint, { 
+        L.marker(endPoint, {
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
-        .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
+            .addTo(mapRenderer.itineraryLayer)
+            .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
 
         if (allCoords.length > 0) {
             const bounds = L.latLngBounds(allCoords);
@@ -409,7 +410,7 @@ async function handleItineraryRequest(options) {
         console.error("Erreur lors de la recherche d'itinéraire:", error);
         plannerPanel.showError(error.message || "Erreur de connexion au service d'itinéraire.");
         isPlannerMode = false;
-        
+
         // On ne cache pas le 'loading' ici, 'showError' le fait déjà.
     }
 }
@@ -419,22 +420,22 @@ function updateData(timeInfo) {
     if (isPlannerMode) {
         const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
         updateClock(currentSeconds);
-        return; 
+        return;
     }
 
     const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
-    const currentDate = timeInfo ? timeInfo.date : timeManager.getCurrentDate(); 
-    
+    const currentDate = timeInfo ? timeInfo.date : timeManager.getCurrentDate();
+
     updateClock(currentSeconds);
-    
+
     const activeBuses = tripScheduler.getActiveTrips(currentSeconds, currentDate);
-    
+
     const busesWithPositions = busPositionCalculator.calculateAllPositions(activeBuses)
         .filter(bus => bus !== null)
-        .filter(bus => bus.route && visibleRoutes.has(bus.route.route_id)); 
-    
+        .filter(bus => bus.route && visibleRoutes.has(bus.route.route_id));
+
     mapRenderer.updateBusMarkers(busesWithPositions, tripScheduler, currentSeconds);
-    
+
     const visibleBusCount = busesWithPositions.length;
     const totalBusCount = visibleBusCount;
     updateBusCount(visibleBusCount, totalBusCount);
@@ -445,15 +446,15 @@ function updateClock(seconds) {
     const hours = Math.floor(seconds / 3600) % 24;
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    
+
     const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     document.getElementById('current-time').textContent = timeString;
-    
-    const now = timeManager.getCurrentDate(); 
-    const dateString = now.toLocaleDateString('fr-FR', { 
-        weekday: 'short', 
-        day: 'numeric', 
-        month: 'short' 
+
+    const now = timeManager.getCurrentDate();
+    const dateString = now.toLocaleDateString('fr-FR', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short'
     });
     document.getElementById('date-indicator').textContent = dateString;
 }
@@ -475,6 +476,7 @@ function updateDataStatus(message, status = '') {
 
 // --- CORRECTION FINALE ---
 // Attend que le HTML soit chargé avant de lancer l'application.
+// C'EST CETTE PARTIE QUI CORRIGE L'ERREUR.
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
 });
