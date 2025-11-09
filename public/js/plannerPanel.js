@@ -1,11 +1,11 @@
 /**
  * Fichier : /js/plannerPanel.js
  *
- * MIS À JOUR :
- * 1. Utilise la nouvelle API "Place Autocomplete" de Google.
- * 2. Lit le nouveau format de réponse de "Routes API" (corrige "Invalid Date").
- * 3. Utilise les nouveaux onglets "Partir"/"Arriver" au lieu du <select>.
- * 4. Affiche un message d'erreur clair (pour l'erreur 503).
+ * MIS À JOUR MAJEURE :
+ * 1. Gère l'affichage de plusieurs itinéraires (routes) sous forme d'onglets.
+ * 2. `createLegStep` affiche désormais les horaires de départ/arrivée
+ * et applique la COULEUR de la ligne à l'icône du bus.
+ * 3. Robuste face aux trajets sans détails de ligne.
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -19,24 +19,24 @@ export class PlannerPanel {
         this.searchButton = document.getElementById('btn-search-itinerary');
         this.locateButton = document.getElementById('btn-use-location');
         this.loadingSpinner = document.getElementById('planner-loading');
-        this.summaryContainer = document.getElementById('itinerary-summary');
-        this.stepsContainer = document.getElementById('itinerary-steps');
 
-        // === NOUVEAUX CHAMPS (Onglets) ===
+        // NOUVEAU: Conteneurs pour les résultats multiples
+        this.summaryContainer = document.getElementById('itinerary-summary-container');
+        this.stepsContainer = document.getElementById('itinerary-steps-container');
+
         this.departureTab = document.getElementById('planner-mode-departure');
         this.arrivalTab = document.getElementById('planner-mode-arrival');
         this.dateInput = document.getElementById('planner-date');
         this.timeInput = document.getElementById('planner-time');
-        this.timeMode = 'DEPARTURE'; // État par défaut
-        // ==============================
+        this.timeMode = 'DEPARTURE'; 
 
         this.fromCoords = null;
         this.toCoords = null;
+        this.currentRoutes = []; // Stocke les données des trajets
 
-        this.setDefaultDateTime(); // Pré-remplir la date et l'heure
+        this.setDefaultDateTime();
         this.bindEvents();
         
-        // Initialiser l'autocomplétion
         window.initMap = () => {
             console.log("Google Maps JS est prêt, initialisation de l'autocomplete.");
             this.initAutocomplete(); 
@@ -46,40 +46,24 @@ export class PlannerPanel {
         }
     }
     
-    /**
-     * NOUVEAU: Pré-remplit les champs date/heure avec la date/heure actuelles
-     */
     setDefaultDateTime() {
         const now = new Date();
-        
-        // Ajuste pour le fuseau horaire local
         const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
-        
         this.dateInput.value = localNow.toISOString().split('T')[0];
         this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5);
     }
     
     async initAutocomplete() {
-        if (typeof google === 'undefined' || !google.maps.places) {
-            console.warn("Google Places API n'est pas chargée. Les suggestions ne fonctionneront pas.");
-            return;
-        }
-
+        if (typeof google === 'undefined' || !google.maps.places) return;
         const { Autocomplete } = await google.maps.importLibrary("places");
-
-        const center = { lat: 45.1833, lng: 0.7167 }; // Périgueux
+        const center = { lat: 45.1833, lng: 0.7167 };
         const defaultBounds = {
-            north: center.lat + 0.3,
-            south: center.lat - 0.3,
-            east: center.lng + 0.3,
-            west: center.lng - 0.3,
+            north: center.lat + 0.3, south: center.lat - 0.3,
+            east: center.lng + 0.3, west: center.lng - 0.3,
         };
-        
         const options = {
-            bounds: defaultBounds,
-            componentRestrictions: { country: "fr" },
-            strictBounds: true, 
-            fields: ["name", "formatted_address", "geometry"],
+            bounds: defaultBounds, componentRestrictions: { country: "fr" },
+            strictBounds: true, fields: ["name", "formatted_address", "geometry"],
         };
         
         const fromAutocomplete = new Autocomplete(this.fromInput, options);
@@ -88,8 +72,7 @@ export class PlannerPanel {
         fromAutocomplete.addListener('place_changed', () => {
             const place = fromAutocomplete.getPlace();
             if (place.geometry) {
-                const loc = place.geometry.location;
-                this.fromCoords = `${loc.lat()},${loc.lng()}`;
+                this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
                 this.fromInput.value = place.name;
             }
         });
@@ -97,8 +80,7 @@ export class PlannerPanel {
         toAutocomplete.addListener('place_changed', () => {
              const place = toAutocomplete.getPlace();
              if (place.geometry) {
-                const loc = place.geometry.location;
-                this.toCoords = `${loc.lat()},${loc.lng()}`;
+                this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
                 this.toInput.value = place.name;
             }
         });
@@ -108,7 +90,6 @@ export class PlannerPanel {
     }
 
     bindEvents() {
-        // === GESTION DES ONGLETS ===
         this.departureTab.addEventListener('click', () => {
             this.timeMode = 'DEPARTURE';
             this.departureTab.classList.add('active');
@@ -120,14 +101,11 @@ export class PlannerPanel {
             this.arrivalTab.classList.add('active');
             this.departureTab.classList.remove('active');
         });
-        // =========================
 
         this.searchButton.addEventListener('click', () => {
             const from = this.fromCoords || this.fromInput.value;
             const to = this.toCoords || this.toInput.value;
-
-            // === LECTURE DES NOUVEAUX CHAMPS ===
-            const timeMode = this.timeMode; // Lit depuis l'état du panneau
+            const timeMode = this.timeMode;
             const date = this.dateInput.value;
             const time = this.timeInput.value;
 
@@ -136,19 +114,14 @@ export class PlannerPanel {
                 return;
             }
             
-            // Combine date et time en ISO string (UTC)
             const isoDateTime = `${date}T${time}:00Z`;
-            
             const options = {
-                fromPlace: from,
-                toPlace: to,
-                timeMode: timeMode,
-                dateTime: isoDateTime
+                fromPlace: from, toPlace: to,
+                timeMode: timeMode, dateTime: isoDateTime
             };
-            // ===================================
             
             this.showLoading();
-            this.searchCallback(options); // Envoyer l'objet options
+            this.searchCallback(options); 
             
             this.fromCoords = null;
             this.toCoords = null;
@@ -157,13 +130,10 @@ export class PlannerPanel {
         this.locateButton.addEventListener('click', () => {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
                 .on('locationfound', (e) => {
-                    const coords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`;
                     this.fromInput.value = "Ma position"; 
-                    this.fromCoords = coords; 
+                    this.fromCoords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`; 
                 })
-                .on('locationerror', (e) => {
-                    alert("Impossible de vous localiser.");
-                });
+                .on('locationerror', (e) => alert("Impossible de vous localiser."));
         });
     }
 
@@ -179,61 +149,102 @@ export class PlannerPanel {
 
     showError(message) {
         this.hideLoading();
-        // Affiche le message d'erreur géré (grâce au fix du routingService)
         this.summaryContainer.innerHTML = `<p style="color: #dc2626; padding: 0 1.5rem;">${message}</p>`;
     }
 
     /**
-     * Affiche l'itinéraire (format "Routes API")
+     * Affiche les itinéraires (format "Routes API") sous forme d'onglets
      */
     displayItinerary(itineraryData) {
         this.hideLoading();
+        this.summaryContainer.innerHTML = '';
         this.stepsContainer.innerHTML = '';
+        this.currentRoutes = [];
 
         if (!itineraryData.routes || itineraryData.routes.length === 0) {
             this.showError("Aucun itinéraire trouvé.");
             return;
         }
 
-        const route = itineraryData.routes[0]; 
-        const leg = route.legs[0]; 
+        this.currentRoutes = itineraryData.routes;
 
-        // 1. Résumé
-        // CORRECTION: 'leg.duration.value' -> 'route.duration' (string "3600s")
-        const durationInSeconds = parseInt(route.duration.slice(0, -1)); // Enlève le "s"
-        const duration = this.dataManager.formatDuration(durationInSeconds);
-        
-        // CORRECTION: Format d'heure ISO (string)
-        // On vérifie si les heures existent (un trajet à pied n'en a pas)
-        const departureText = leg.departureTime ? new Date(leg.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
-        const arrivalText = leg.arrivalTime ? new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+        // Crée un onglet résumé pour chaque route
+        this.currentRoutes.forEach((route, index) => {
+            const leg = route.legs[0];
+            const duration = this.dataManager.formatDuration(parseInt(route.duration.slice(0, -1)));
+            const departureTime = leg.departureTime ? new Date(leg.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+            const arrivalTime = leg.arrivalTime ? new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
 
-        this.summaryContainer.innerHTML = `
-            <h4>Le plus rapide : ${duration}</h4>
-            ${ (departureText && arrivalText) ?
-                `<p>${departureText} &ndash; ${arrivalText}</p>` :
-                '' 
-            }
-        `;
+            // Crée les icônes de mode (Bus, Marche)
+            let modesHtml = '';
+            leg.steps.forEach(step => {
+                const icon = step.travelMode === 'WALK' ? 'directions_walk' : 'directions_bus';
+                modesHtml += `<span class="material-icons">${icon}</span>`;
+            });
 
-        // 2. Étapes (Steps)
-        leg.steps.forEach(step => {
-            if (step) {
-                this.stepsContainer.appendChild(this.createLegStep(step));
-            }
+            // Crée l'onglet résumé
+            const summaryTab = document.createElement('div');
+            summaryTab.className = 'itinerary-summary-tab';
+            summaryTab.dataset.index = index;
+            summaryTab.innerHTML = `
+                <h4>
+                    <span>${duration}</span>
+                    <span>${departureTime} &ndash; ${arrivalTime}</span>
+                </h4>
+                <div class="leg-modes">${modesHtml}</div>
+            `;
+            
+            summaryTab.addEventListener('click', () => this.activateRouteTab(index));
+            this.summaryContainer.appendChild(summaryTab);
+
+            // Crée le conteneur d'étapes
+            const stepsContent = document.createElement('div');
+            stepsContent.className = 'itinerary-steps-content';
+            stepsContent.id = `steps-content-${index}`;
+            
+            leg.steps.forEach(step => {
+                if (step) {
+                    stepsContent.appendChild(this.createLegStep(step));
+                }
+            });
+            this.stepsContainer.appendChild(stepsContent);
         });
+
+        // Active le premier onglet par défaut
+        this.activateRouteTab(0);
     }
 
-    /** Crée une étape de trajet (format "Routes API") */
+    /**
+     * Active un onglet d'itinéraire spécifique
+     */
+    activateRouteTab(index) {
+        // Gère les onglets de résumé
+        this.summaryContainer.querySelectorAll('.itinerary-summary-tab').forEach((tab, i) => {
+            tab.classList.toggle('active', i === index);
+        });
+        
+        // Gère les conteneurs d'étapes
+        this.stepsContainer.querySelectorAll('.itinerary-steps-content').forEach((content, i) => {
+            content.classList.toggle('active', i === index);
+        });
+
+        // (Ici, vous pourriez aussi redessiner la polyligne sur la carte si vous le souhaitez)
+    }
+
+
+    /** Crée une étape de trajet (format "Routes API") avec tous les détails */
     createLegStep(step) {
         const el = document.createElement('div');
         el.className = 'itinerary-leg';
         el.dataset.mode = step.travelMode;
 
         const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1)));
-        const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+        
+        // Formate les heures
+        const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+        const endTime = step.arrivalTime ? new Date(step.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
 
-        let icon, details;
+        let icon, details, iconStyle = '';
         const instruction = step.navigationInstruction ? step.navigationInstruction.instructions : 'Marcher';
 
         if (step.travelMode === 'WALK') {
@@ -243,17 +254,21 @@ export class PlannerPanel {
                 <strong>${instruction}</strong>
                 <div class="leg-time-info">${legDuration} (${distanceKm} km)</div>
             `;
-        } else if (step.travelMode === 'TRANSIT') {
+        } 
+        else if (step.travelMode === 'TRANSIT') {
             icon = 'directions_bus';
             const transit = step.transitDetails;
             
+            // Si on a les détails de la ligne (cas normal)
             if (transit && transit.line) {
                 const line = transit.line;
-                const routeColor = line.color || '#333';
+                const routeColor = line.color || '#3388ff'; // Bleu par défaut
                 const textColor = line.textColor || this.getContrastColor(routeColor);
+                
+                // Applique la couleur de la ligne à l'icône !
+                iconStyle = `style="background-color: ${routeColor}; color: ${textColor};"`;
 
                 details = `
-                    <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.stopDetails.departureStop.name}</strong></div>
                     <div class="leg-route">
                         <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
                             ${line.shortName || line.name}
@@ -261,26 +276,40 @@ export class PlannerPanel {
                         <strong>Direction ${transit.headsign}</strong>
                     </div>
                     <div class="leg-time-info">
-                        ${transit.stopCount} arrêt(s) (${legDuration})
+                        Prendre à <strong>${transit.stopDetails.departureStop.name}</strong>
+                        ${startTime ? `<span class="time-detail">(Départ: ${startTime})</span>` : ''}
                     </div>
                     <div class="leg-time-info" style="margin-top: 5px;">
                         Descendre à <strong>${transit.stopDetails.arrivalStop.name}</strong>
+                        ${endTime ? `<span class="time-detail">(Arrivée: ${endTime})</span>` : ''}
+                    </div>
+                    <div class="leg-time-info" style="margin-top: 5px;">
+                        ${transit.stopCount} arrêt(s) (${legDuration})
                     </div>
                 `;
-            } else {
+            } 
+            // Fallback (comme dans votre screenshot) si l'API ne renvoie pas les détails de ligne
+            else {
+                iconStyle = `style="background-color: #6c757d;"`; // Gris
                 details = `
                     <strong>${instruction}</strong>
+                    <div class="leg-time-info">
+                        ${startTime ? `Départ: ${startTime}` : ''}
+                        ${endTime ? ` - Arrivée: ${endTime}` : ''}
+                    </div>
                     <div class="leg-time-info">${legDuration}</div>
                 `;
             }
-        } else {
+        } 
+        else {
             icon = 'help';
+            iconStyle = `style="background-color: #6c757d;"`; // Gris
             details = `<strong>${instruction}</strong>`;
         }
 
         el.innerHTML = `
             <div class="leg-icon">
-                <span class="material-icons">${icon}</span>
+                <span class="material-icons" ${iconStyle}>${icon}</span>
                 <div class="leg-line"></div>
             </div>
             <div class="leg-details">
