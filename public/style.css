@@ -887,7 +887,82 @@ html, body {
 .leg-details strong {
     line-height: 1.4;
 }
+/* ==== AJOUT: Styles pour les onglets de résultats multiples ==== */
+#itinerary-summary-container {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+}
 
+.itinerary-summary-tab {
+    padding: 1rem 1.5rem;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+.itinerary-summary-tab:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+}
+.itinerary-summary-tab:hover {
+    background: #eef2ff;
+}
+.itinerary-summary-tab.active {
+    background: var(--bg-main);
+    border-left: 4px solid var(--primary);
+    padding-left: calc(1.5rem - 4px);
+}
+.itinerary-summary-tab h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    display: flex;
+    justify-content: space-between;
+}
+.itinerary-summary-tab.active h4 {
+    color: var(--primary);
+}
+.itinerary-summary-tab p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+/* Affiche les icônes de mode (Bus, Marche) dans le résumé */
+.itinerary-summary-tab .leg-modes {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+.itinerary-summary-tab .leg-modes .material-icons {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+}
+
+/* Conteneur pour les détails des étapes */
+#itinerary-steps-container {
+    flex: 1;
+    overflow-y: auto;
+}
+.itinerary-steps-content {
+    display: none; /* Caché par défaut */
+}
+.itinerary-steps-content.active {
+    display: block; /* Visible */
+}
+
+/* Amélioration du leg de bus */
+.itinerary-leg[data-mode="TRANSIT"] .leg-icon .material-icons {
+    /* Le style (couleur) est appliqué en ligne par JS */
+    color: white; /* Couleur de texte par défaut */
+}
+.leg-details .leg-time-info strong {
+    color: var(--text-primary);
+}
+.leg-details .leg-time-info .time-detail {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
 /* ==== AJOUT: Styles pour les onglets Partir/Arriver (Inspiration IDFM) ==== */
 .planner-tabs {
     display: flex;
