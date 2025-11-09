@@ -1,14 +1,10 @@
 /**
  * routingService.js
- * * Service pour interroger le backend local (proxy) afin d'obtenir un itinéraire.
+ * * Service pour interroger le backend et décoder les itinéraires.
  *
- * VERSION CORRIGÉE :
- * 1. Corrige les erreurs de syntaxe (le '||' mal formaté).
- * 2. Utilise le bon endpoint '/api/calculer-itineraire'.
- * 3. Accepte un objet 'options' complet (de main.js) pour plus de clarté.
- * 4. Formate les coordonnées {lat, lon} en chaînes "lat,lon" que le backend attend.
- * 5. Envoie TOUTES les données (y compris l'heure) dans le corps JSON du POST,
- * ce qui correspond au backend corrigé.
+ * VERSION MISE À JOUR :
+ * 1. Ajout de la fonction `decodePolyline` (requise par main.js)
+ * 2. Conserve la logique `getItinerary` (POST) que nous avons corrigée.
  */
 
 // Le bon endpoint qui correspond au nom du fichier backend
@@ -16,11 +12,7 @@ const API_PROXY_ENDPOINT = '/api/calculer-itineraire';
 
 /**
  * Demande un itinéraire au backend.
- * * @param {object} options - L'objet d'options de main.js
- * @param {{lat: number, lon: number}} options.fromCoords - Coordonnées du point de départ.
- * @param {{lat: number, lon: number}} options.toCoords - Coordonnées du point d'arrivée.
- * @param {string} options.isoDateTime - Heure au format ISO (ex: "2025-11-09T22:10:00")
- * @param {'DEPARTURE' | 'ARRIVAL'} options.timeMode - Mode de calcul du temps.
+ * @param {object} options - L'objet d'options de main.js
  * @returns {Promise<object>} Une promesse qui se résout avec les données de l'itinéraire.
  */
 async function getItinerary(options) {
@@ -28,8 +20,9 @@ async function getItinerary(options) {
   const { fromCoords, toCoords, isoDateTime, timeMode } = options;
 
   // 1. Formate les coordonnées en chaînes, comme le backend les attend
-  const from = `${fromCoords.lat},${fromCoords.lon}`;
-  const to = `${toCoords.lat},${toCoords.lon}`;
+  // (Note: main.js envoie des {lat, lon}, mais routingService les formate)
+  const from = `${options.fromPlace.lat},${options.fromPlace.lon}`;
+  const to = `${options.toPlace.lat},${options.toPlace.lon}`;
 
   // 2. Prépare le corps de la requête
   const requestBody = {
@@ -46,20 +39,18 @@ async function getItinerary(options) {
 
   try {
     const response = await fetch(API_PROXY_ENDPOINT, {
-      method: 'POST', // Reste en POST
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody), // Envoie toutes les données
+      body: JSON.stringify(requestBody),
     });
 
     const responseData = await response.json();
 
     if (!response.ok) {
-      // CORRECTION SYNTAXE : L'opérateur '||' est sur la même ligne.
       const errorPayload = responseData.error || `Erreur ${response.status}`;
       const status = responseData.status || 'UNKNOWN_ERROR';
-      
       throw new Error(`Erreur de l'API d'itinéraire: ${errorPayload}`, { cause: { status } });
     }
 
@@ -67,11 +58,49 @@ async function getItinerary(options) {
 
   } catch (error) {
     console.error(`Erreur dans RoutingService.getItinerary:`, error.message);
-    throw error; // Propage l'erreur pour que main.js l'attrape
+    throw error;
   }
 }
 
-// Exporte le service
+/**
+ * NOUVELLE FONCTION (Requise par main.js)
+ * Décode une polyligne encodée (Google) en un tableau de [lat, lng].
+ * @param {string} encoded - La chaîne de polyligne.
+ * @returns {Array<[number, number]>} Un tableau de [lat, lng].
+ */
+function decodePolyline(encoded) {
+    let points = [];
+    let index = 0, len = encoded.length;
+    let lat = 0, lng = 0;
+
+    while (index < len) {
+        let b, shift = 0, result = 0;
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        lat += dlat;
+
+        shift = 0;
+        result = 0;
+        do {
+            b = encoded.charCodeAt(index++) - 63;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+        } while (b >= 0x20);
+        let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        lng += dlng;
+
+        // Note: Google renvoie [lat, lng], ce que Leaflet attend.
+        points.push([lat * 1e-5, lng * 1e-5]);
+    }
+    return points;
+}
+
+// Exporte le service (AVEC la nouvelle fonction)
 export const RoutingService = {
   getItinerary,
+  decodePolyline, // <-- Exporte la nouvelle fonction
 };
