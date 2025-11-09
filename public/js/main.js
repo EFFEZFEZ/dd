@@ -347,6 +347,7 @@ async function handleItineraryRequest(fromPlace, toPlace) {
 
             let style = {};
 
+            // CORRECTION: 'travel_mode' -> 'travelMode'
             if (step.travelMode === 'WALK') {
                 style = {
                     color: '#6c757d', 
@@ -370,26 +371,29 @@ async function handleItineraryRequest(fromPlace, toPlace) {
                     opacity: 0.9
                 };
             } else {
-                style = { color: '#2563eb', weight: 5 };
+                // Cas d'un mode "undefined" ou autre
+                style = { color: '#6c757d', weight: 4 };
             }
             
             L.polyline(stepCoords, style).addTo(mapRenderer.itineraryLayer);
         });
 
         // (Le reste de la fonction : marqueurs, zoom, affichage... reste identique)
+        // CORRECTION: 'start_location' -> 'startLocation.latLng.latitude' etc.
         const startPoint = [leg.startLocation.latLng.latitude, leg.startLocation.latLng.longitude];
         L.marker(startPoint, { 
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
         .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
+        .bindPopup(`<b>Départ:</b> ${leg.startAddress}`); // 'start_address' -> 'startAddress'
 
+        // CORRECTION: 'end_location' -> 'endLocation.latLng.latitude' etc.
         const endPoint = [leg.endLocation.latLng.latitude, leg.endLocation.latLng.longitude];
          L.marker(endPoint, { 
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
         .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
+        .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`); // 'end_address' -> 'endAddress'
 
         if (allCoords.length > 0) {
             const bounds = L.latLngBounds(allCoords);
