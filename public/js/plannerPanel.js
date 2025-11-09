@@ -1,12 +1,19 @@
 /**
  * Fichier : /js/plannerPanel.js
  *
- * CETTE VERSION CORRIGE :
- * 1. LIMITE l'affichage à 3 trajets maximum (avec .slice(0, 3)).
- * 2. REGROUPE les étapes de marche (corrige "trop dans la marche").
- * 3. FILTRE les étapes "undefined" ou vides.
- * 4. AFFICHE la couleur et les détails du bus (si le backend les envoie).
+ * CORRECTION FINALE (Geocoding-First) :
+ * 1. Importe GeocodingService.
+ * 2. Modifie l'écouteur 'searchButton' pour être 'async'.
+ * 3. Si l'utilisateur n'a pas utilisé l'autocomplétion,
+ * le panel géocode LUI-MÊME le texte (via Nominatim)
+ * AVANT d'appeler le backend.
+ * 4. Cela garantit que le backend ne reçoit QUE des coordonnées,
+ * ce qui résout l'erreur 'INVALID_ARGUMENT' de Google.
  */
+
+// AJOUT DE L'IMPORT
+import { GeocodingService } from './geocodingService.js';
+
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
         this.panel = document.getElementById(panelId);
@@ -29,8 +36,8 @@ export class PlannerPanel {
         this.timeInput = document.getElementById('planner-time');
         this.timeMode = 'DEPARTURE'; 
 
-        this.fromCoords = null;
-        this.toCoords = null;
+        this.fromCoords = null; // Stocke "lat,lon" si Autocomplete est utilisé
+        this.toCoords = null;   // Stocke "lat,lon" si Autocomplete est utilisé
         this.currentRoutes = []; 
 
         this.setDefaultDateTime();
@@ -58,7 +65,7 @@ export class PlannerPanel {
         const center = { lat: 45.1833, lng: 0.7167 };
         const defaultBounds = {
             north: center.lat + 0.3, south: center.lat - 0.3,
-            east: center.lng + 0.3, west: center.lng - 0.3,
+            east: center.lng + 0.3, west: center.lng + 0.3,
         };
         const options = {
             bounds: defaultBounds, componentRestrictions: { country: "fr" },
@@ -71,6 +78,7 @@ export class PlannerPanel {
         fromAutocomplete.addListener('place_changed', () => {
             const place = fromAutocomplete.getPlace();
             if (place.geometry) {
+                // Stocke les coordonnées au format "lat,lon"
                 this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
                 this.fromInput.value = place.name;
             }
@@ -79,11 +87,13 @@ export class PlannerPanel {
         toAutocomplete.addListener('place_changed', () => {
              const place = toAutocomplete.getPlace();
              if (place.geometry) {
+                // Stocke les coordonnées au format "lat,lon"
                 this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
                 this.toInput.value = place.name;
             }
         });
 
+        // Réinitialise si l'utilisateur modifie le texte
         this.fromInput.addEventListener('input', () => { this.fromCoords = null; });
         this.toInput.addEventListener('input', () => { this.toCoords = null; });
     }
@@ -101,30 +111,68 @@ export class PlannerPanel {
             this.departureTab.classList.remove('active');
         });
 
-        this.searchButton.addEventListener('click', () => {
-            const from = this.fromCoords || this.fromInput.value;
-            const to = this.toCoords || this.toInput.value;
+        // --- CORRECTION MAJEURE : GESTION DU CLIC ---
+        // Le listener doit être 'async' pour 'await' le géocodage
+        this.searchButton.addEventListener('click', async () => {
+            
+            let fromText = this.fromInput.value;
+            let toText = this.toInput.value;
+            
+            // 1. Récupère les coordonnées (si autocomplétion) ou le texte
+            let fromData = this.fromCoords || fromText;
+            let toData = this.toCoords || toText;
+
             const timeMode = this.timeMode;
             const date = this.dateInput.value;
             const time = this.timeInput.value;
 
-            if (!from || !to || !date || !time) {
+            if (!fromData || !toData || !date || !time) {
                 alert("Veuillez remplir le départ, l'arrivée, la date et l'heure.");
                 return;
             }
             
-            const isoDateTime = `${date}T${time}:00Z`;
-            const options = {
-                fromPlace: from, toPlace: to,
-                timeMode: timeMode, dateTime: isoDateTime
-            };
+            this.showLoading("Recherche d'itinéraire...");
+
+            try {
+                // 2. Si 'fromData' N'EST PAS des coordonnées (c'est du texte)
+                if (!this.fromCoords && fromText) {
+                    this.showLoading("Géocodage du départ...");
+                    const coords = await GeocodingService.geocodeAddress(fromText);
+                    fromData = `${coords.lat},${coords.lon}`; // Format "lat,lon"
+                }
+                
+                // 3. Si 'toData' N'EST PAS des coordonnées (c'est du texte)
+                if (!this.toCoords && toText) {
+                    this.showLoading("Géocodage de l'arrivée...");
+                    const coords = await GeocodingService.geocodeAddress(toText);
+                    toData = `${coords.lat},${coords.lon}`; // Format "lat,lon"
+                }
+
+                // 4. Prépare l'appel au backend (le backend AIME ce format)
+                const isoDateTime = `${date}T${time}:00Z`;
+                const options = {
+                    fromPlace: fromData, // Contient "lat,lon"
+                    toPlace: toData,     // Contient "lat,lon"
+                    timeMode: timeMode, 
+                    dateTime: isoDateTime
+                };
+                
+                this.showLoading("Calcul de l'itinéraire...");
+                
+                // 5. Appelle le backend (via main.js et routingService.js)
+                // 'searchCallback' est 'handleItineraryRequest' dans main.js
+                await this.searchCallback(options); 
             
-            this.showLoading();
-            this.searchCallback(options); 
+            } catch (error) {
+                // Si le géocodage échoue (ex: adresse inconnue)
+                this.showError(error.message);
+            }
             
+            // Réinitialise pour la prochaine recherche
             this.fromCoords = null;
             this.toCoords = null;
         });
+        // --- FIN DE LA CORRECTION ---
 
         this.locateButton.addEventListener('click', () => {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
@@ -136,7 +184,9 @@ export class PlannerPanel {
         });
     }
 
-    showLoading() {
+    // Renomme showLoading pour accepter un message
+    showLoading(message = "Recherche en cours...") {
+        this.loadingSpinner.querySelector('p').textContent = message; // Ajout
         this.loadingSpinner.classList.remove('hidden');
         this.summaryContainer.innerHTML = '';
         this.stepsContainer.innerHTML = '';
@@ -151,15 +201,15 @@ export class PlannerPanel {
         this.summaryContainer.innerHTML = `<p style="color: #dc2626; padding: 0 1.5rem;">${message}</p>`;
     }
 
-    /**
-     * NOUVEAU: Regroupe les étapes de marche
-     */
+    // ... (Tout le reste de la classe reste identique) ...
+    // groupSteps, displayItinerary, activateRouteTab, createLegStep, getContrastColor
+    
     groupSteps(steps) {
         const groupedSteps = [];
         let currentWalkStep = null;
 
         for (const step of steps) {
-            if (!step) continue; // Sécurité
+            if (!step) continue; 
 
             if (step.travelMode === 'WALK') {
                 if (!currentWalkStep) {
@@ -190,9 +240,6 @@ export class PlannerPanel {
         return groupedSteps;
     }
 
-    /**
-     * Affiche les itinéraires (format "Routes API") sous forme d'onglets
-     */
     displayItinerary(itineraryData) {
         this.hideLoading();
         this.summaryContainer.innerHTML = '';
@@ -204,10 +251,8 @@ export class PlannerPanel {
             return;
         }
 
-        // --- CORRECTION: Limite à 3 trajets ---
         this.currentRoutes = itineraryData.routes.slice(0, 3);
 
-        // Crée un onglet résumé pour chaque route
         this.currentRoutes.forEach((route, index) => {
             const leg = route.legs[0];
             const duration = this.dataManager.formatDuration(parseInt(route.duration.slice(0, -1)));
@@ -215,14 +260,12 @@ export class PlannerPanel {
             const arrivalTime = leg.arrivalTime ? new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
 
             let modesHtml = '';
-            // ** Utilise les étapes regroupées pour les icônes **
             const groupedSteps = this.groupSteps(leg.steps);
             groupedSteps.forEach(step => {
                 const icon = step.travelMode === 'WALK' ? 'directions_walk' : 'directions_bus';
                 modesHtml += `<span class="material-icons">${icon}</span>`;
             });
 
-            // Crée l'onglet résumé
             const summaryTab = document.createElement('div');
             summaryTab.className = 'itinerary-summary-tab';
             summaryTab.dataset.index = index;
@@ -237,12 +280,10 @@ export class PlannerPanel {
             summaryTab.addEventListener('click', () => this.activateRouteTab(index));
             this.summaryContainer.appendChild(summaryTab);
 
-            // Crée le conteneur d'étapes
             const stepsContent = document.createElement('div');
             stepsContent.className = 'itinerary-steps-content';
             stepsContent.id = `steps-content-${index}`;
             
-            // ** Crée les éléments d'étape à partir des étapes regroupées **
             groupedSteps.forEach(step => {
                 const stepElement = this.createLegStep(step);
                 if (stepElement) { 
@@ -252,13 +293,9 @@ export class PlannerPanel {
             this.stepsContainer.appendChild(stepsContent);
         });
 
-        // Active le premier onglet par défaut
         this.activateRouteTab(0);
     }
 
-    /**
-     * Active un onglet d'itinéraire spécifique
-     */
     activateRouteTab(index) {
         this.summaryContainer.querySelectorAll('.itinerary-summary-tab').forEach((tab, i) => {
             tab.classList.toggle('active', i === index);
@@ -269,12 +306,10 @@ export class PlannerPanel {
         });
     }
 
-    /** Crée une étape de trajet (format "Routes API") avec tous les détails */
     createLegStep(step) {
         const instruction = (step.navigationInstruction ? step.navigationInstruction.instructions : null) || 
                             (step.travelMode === 'WALK' ? 'Marcher' : 'Continuer');
 
-        // ** Ne pas afficher les étapes "undefined" ou vides **
         if (!instruction || instruction === 'undefined') {
             return null;
         }
@@ -304,7 +339,6 @@ export class PlannerPanel {
             icon = 'directions_bus';
             const transit = step.transitDetails;
             
-            // Cas 1: L'API a renvoyé les détails (le cas idéal, grâce au FieldMask)
             if (transit && transit.line) {
                 const line = transit.line;
                 const routeColor = line.color || '#3388ff';
@@ -332,7 +366,6 @@ export class PlannerPanel {
                     </div>
                 `;
             } 
-            // Cas 2: L'API n'a PAS renvoyé les détails (votre cas actuel)
             else {
                 iconStyle = `style="background-color: #6c757d;"`; // Gris
                 details = `
@@ -363,7 +396,6 @@ export class PlannerPanel {
         return el;
     }
 
-    /** Calcule si le texte doit être blanc ou noir sur une couleur de fond */
     getContrastColor(hexcolor) {
         if (!hexcolor) return '#000000';
         hexcolor = hexcolor.replace("#", "");
