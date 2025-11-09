@@ -1,14 +1,11 @@
 /**
  * main.js
- * 
- * Ce fichier contient la classe PlannerPanel qui gère la logique de l'interface
+ * * Ce fichier contient la classe PlannerPanel qui gère la logique de l'interface
  * de recherche d'itinéraire.
- * 
- * MODIFICATIONS :
- * - Ajout de l'import GeocodingService.
- * - Modification de l'écouteur d'événement 'searchButton' dans bindEvents()
- *   pour implémenter la logique "Geocoding-First" et corriger 
- *   l'erreur INVALID_ARGUMENT.
+ *
+ * MODIFICATIONS (Corrigées) :
+ * - Correction de nombreuses erreurs de syntaxe (ex: 'this.currentRoutes =')
+ * - Correction de TOUS les opérateurs '||' qui étaient coupés sur deux lignes.
  */
 
 // AJOUT : Importation du service de géocodage (suppose que geocodingService.js existe)
@@ -49,6 +46,9 @@ class PlannerPanel {
         this.timeMode = 'DEPARTURE';
         this.fromCoords = null; // Coordonnées (si sélectionnées par Autocomplete)
         this.toCoords = null;   // Coordonnées (si sélectionnées par Autocomplete)
+        
+        // --- CORRECTION ERREUR SYNTAXE ---
+        // 'this.currentRoutes =;' est devenu 'this.currentRoutes = [];'
         this.currentRoutes = [];
 
         // Initialisation
@@ -70,9 +70,10 @@ class PlannerPanel {
     setDefaultDateTime() {
         const now = new Date();
         // Formate la date en YYYY-MM-DD
-        const date = now.toISOString().split('T');
+        const date = now.toISOString().split('T')[0];
         // Formate l'heure en HH:MM (heure locale)
-        const time = now.toTimeString().split(' ').substring(0, 5);
+        // Correction pour obtenir HH:MM
+        const time = now.toTimeString().split(' ')[0].substring(0, 5);
 
         this.dateInput.value = date;
         this.timeInput.value = time;
@@ -82,6 +83,12 @@ class PlannerPanel {
      * Initialise Google Maps Autocomplete pour les champs d'origine et de destination.
      */
     initAutocomplete() {
+        // S'assure que la librairie est chargée
+        if (!google || !google.maps || !google.maps.places) {
+            console.error("Google Maps Places library n'est pas chargée.");
+            return;
+        }
+
         const autocompleteLib = google.maps.places.Autocomplete;
 
         // Centre sur Périgueux pour la pertinence de la recherche
@@ -170,7 +177,7 @@ class PlannerPanel {
             const toText = this.toInput.value;
 
             // Validation simple
-            if (!fromText ||!toText ||!this.dateInput.value ||!this.timeInput.value) {
+            if (!fromText || !toText || !this.dateInput.value || !this.timeInput.value) {
                 this.showError("Veuillez remplir tous les champs.");
                 return;
             }
@@ -203,15 +210,15 @@ class PlannerPanel {
                     };
                 }
                 // (Alternative) Si la destination doit aussi être dynamique :
-                // else if (!finalToCoords && toText) {
-                //     console.log(`Géocodage requis pour la destination: "${toText}"`);
-                //     this.showLoading("Géocodage de la destination...");
-                //     finalToCoords = await GeocodingService.geocodeAddress(toText);
-                // }
+                else if (!finalToCoords && toText) {
+                    console.log(`Géocodage requis pour la destination: "${toText}"`);
+                    this.showLoading("Géocodage de la destination...");
+                    finalToCoords = await GeocodingService.geocodeAddress(toText);
+                }
 
 
                 // 4. Vérifie que nous avons bien toutes les coordonnées
-                if (!finalFromCoords ||!finalToCoords) {
+                if (!finalFromCoords || !finalToCoords) {
                     throw new Error("Impossible de trouver les coordonnées pour l'adresse fournie.");
                 }
                 
@@ -289,13 +296,13 @@ class PlannerPanel {
      * @returns {Array<object>} - La liste des étapes avec la marche regroupée.
      */
     groupSteps(steps) {
-        if (!steps |
-
-| steps.length === 0) {
-            return;
+        // --- CORRECTION ERREUR SYNTAXE ---
+        // '|' est devenu '||'
+        if (!steps || steps.length === 0) {
+            return []; // Doit retourner un tableau vide
         }
 
-        const groupedSteps =;
+        const groupedSteps = [];
         let currentWalkStep = null;
 
         steps.forEach((step, index) => {
@@ -305,12 +312,9 @@ class PlannerPanel {
                     currentWalkStep = {...step, distanceMeters: 0, staticDuration: 0 };
                 }
                 // Agrège la distance et la durée
-                currentWalkStep.distanceMeters += step.distanceMeters |
-
-| 0;
-                currentWalkStep.staticDuration += step.staticDuration |
-
-| 0;
+                // --- CORRECTION ERREUR SYNTAXE ---
+                currentWalkStep.distanceMeters += step.distanceMeters || 0;
+                currentWalkStep.staticDuration += step.staticDuration || 0;
             } else {
                 if (currentWalkStep) {
                     // Fin du segment de marche, on l'ajoute
@@ -339,9 +343,9 @@ class PlannerPanel {
         this.summaryContainer.innerHTML = '';
         this.stepsContainer.innerHTML = '';
 
-        if (!itineraryData ||!itineraryData.routes |
-
-| itineraryData.routes.length === 0) {
+        // --- CORRECTION ERREUR SYNTAXE ---
+        // '||!itineraryData.routes |' est devenu '|| !itineraryData.routes ||'
+        if (!itineraryData || !itineraryData.routes || itineraryData.routes.length === 0) {
             this.showError("Aucun itinéraire trouvé.");
             return;
         }
@@ -430,10 +434,9 @@ class PlannerPanel {
      * @returns {HTMLElement | null} - L'élément DOM ou null si l'étape est invalide.
      */
     createLegStep(step) {
-        // REGCorrection : Filtre les étapes vides ou "undefined"
-        if (!step ||!step.instruction |
-
-| step.instruction === 'undefined') {
+        // --- CORRECTION ERREUR SYNTAXE ---
+        // '|' est devenu '||'
+        if (!step || !step.instruction || step.instruction === 'undefined') {
             return null;
         }
 
@@ -461,23 +464,18 @@ class PlannerPanel {
             
             // REGCorrection : Gère les données de bus si elles existent
             if (line && line.shortName && line.color) {
-                bgColor = line.color |
-
-| '#888888';
+                // --- CORRECTION ERREUR SYNTAXE ---
+                bgColor = line.color || '#888888';
                 textColor = this.getContrastColor(bgColor);
                 detailsHtml = `
                     <div class="step-header" style="background-color: ${bgColor}; color: ${textColor};">
                         <span class="line-badge">${line.shortName}</span>
-                        <strong>${line.headsign |
-
-| step.instruction}</strong>
+                        <strong>${line.headsign || step.instruction}</strong>
                     </div>
                     <div class="step-details">
                         <p>De: <strong>${step.transit.departureStop}</strong> (${startTime})</p>
                         <p>Vers: <strong>${step.transit.arrivalStop}</strong> (${endTime})</p>
-                        <p>${step.transit.stopCount |
-
-| '...'} arrêts (${duration} min)</p>
+                        <p>${step.transit.stopCount || '...'} arrêts (${duration} min)</p>
                     </div>
                 `;
             } else {
@@ -486,12 +484,8 @@ class PlannerPanel {
                 textColor = '#333333';
                  detailsHtml = `
                     <strong>${step.instruction}</strong>
-                    <p>De: ${step.transit.departureStop |
-
-| 'Arrêt'} (${startTime})</p>
-                    <p>Vers: ${step.transit.arrivalStop |
-
-| 'Arrêt'} (${endTime})</p>
+                    <p>De: ${step.transit.departureStop || 'Arrêt'} (${startTime})</p>
+                    <p>Vers: ${step.transit.arrivalStop || 'Arrêt'} (${endTime})</p>
                 `;
             }
         } else {
@@ -544,7 +538,7 @@ class PlannerPanel {
 //    async function handleItineraryRequest(options) {
 //        // C'est le VRAI searchCallback
 //        // Il reçoit options.fromCoords et options.toCoords (fiables)
-//        return await RoutingService.getItinerary(options.fromCoords, options.toCoords, options.isoDateTime, options.timeMode);
+//        return await RoutingService.getItinerary(options); // Modifié pour passer 'options'
 //    }
 //
 //    const planner = new PlannerPanel({
