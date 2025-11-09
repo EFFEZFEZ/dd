@@ -139,7 +139,7 @@ export class PlannerPanel {
                 
                 if (place.geometry && place.geometry.location) {
                     this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
-                    this.fromInput.value = place.name || place.formattedAddress || '';
+                    this.toInput.value = place.name || place.formattedAddress || '';
                 } else {
                     this.toCoords = null;
                 }
