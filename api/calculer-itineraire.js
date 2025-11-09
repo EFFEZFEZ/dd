@@ -1,12 +1,10 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * VERSION CORRIGÉE ET COMPLÈTE
+ * VERSION FINALE CORRIGÉE
  *
- * 1. Lit l'heure de départ/arrivée envoyée par le frontend.
- * 2. Demande des trajets alternatifs (computeAlternativeRoutes: true).
- * 3. Demande moins de marche (LESS_WALKING) tout en forçant le BUS.
- * 4. Utilise le FieldMask COMPLET pour obtenir les couleurs et détails de la ligne.
+ * CORRECTION: 'transitRoutingPreference' est renommé en 'routingPreference'
+ * pour correspondre à la nouvelle API Routes V2.
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -84,15 +82,16 @@ export default async function handler(request) {
             travelMode: "TRANSIT",
             languageCode: "fr",
             
-            // --- CORRECTION N°2 et N°3 : Demander alternatives et moins de marche ---
             computeAlternativeRoutes: true,
             transitPreferences: {
-                allowedTravelModes: ["BUS"], // Garde votre filtre pour BUS
-                transitRoutingPreference: "LESS_WALKING" // Ajoute la préférence Moins de Marche
+                allowedTravelModes: ["BUS"],
+                // --- LA CORRECTION EST ICI ---
+                routingPreference: "LESS_WALKING" // 'transitRoutingPreference' était incorrect
+                // --- FIN DE LA CORRECTION ---
             }
         };
 
-        // --- CORRECTION N°4 : Utiliser l'heure du frontend ---
+        // Utiliser l'heure du frontend
         if (departureTime) {
             requestBody.departureTime = departureTime;
         } else if (arrivalTime) {
@@ -108,7 +107,7 @@ export default async function handler(request) {
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': apiKey,
                 
-                // --- CORRECTION N°1 : Le FieldMask COMPLET ---
+                // Le FieldMask COMPLET pour avoir les couleurs et détails
                 'X-Goog-FieldMask': 'routes.legs.steps.transitDetails.line.color,routes.legs.steps.transitDetails.line.shortName,routes.legs.steps.transitDetails.line.textColor,routes.legs.steps.transitDetails.headsign,routes.legs.steps.transitDetails.stopDetails.departureStop.name,routes.legs.steps.transitDetails.stopDetails.arrivalStop.name,routes.legs.steps.transitDetails.stopCount,routes.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.travelMode,routes.legs.steps.navigationInstruction,routes.legs.startLocation,routes.legs.endLocation,routes.legs.startAddress,routes.legs.endAddress'
             },
             body: JSON.stringify(requestBody)
