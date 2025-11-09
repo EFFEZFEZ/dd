@@ -65,8 +65,6 @@ export class PlannerPanel {
     
     /**
      * NOUVELLE MÉTHODE initAutocomplete (CORRIGÉE)
-     * Supprime les lignes qui plantent.
-     * Ajoute 'fetchFields' dans les listeners.
      */
     initAutocomplete() {
         if (typeof google === 'undefined' || !google.maps.places || !this.fromAutocompleteElement) {
@@ -303,6 +301,7 @@ export class PlannerPanel {
         });
     }
 
+// (Le reste de la classe, 'createLegStep' et 'getContrastColor', est identique à votre version)
     createLegStep(step) {
         const instruction = (step.navigationInstruction ? step.navigationInstruction.instructions : null) || 
                             (step.travelMode === 'WALK' ? 'Marcher' : 'Continuer');
