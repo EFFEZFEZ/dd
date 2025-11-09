@@ -4,16 +4,27 @@
  * S'exécute dans le navigateur.
  * Il appelle notre propre fonction serverless /api/calculer-itineraire
  * pour obtenir un itinéraire. Il n'a aucune connaissance de la clé API.
+ *
+ * MODIFIÉ: Accepte un objet 'options' et ajoute les paramètres de temps à l'URL.
  */
 export class RoutingService {
 
     /**
      * Demande un itinéraire à notre fonction serverless Vercel
      */
-    async getItinerary(fromPlace, toPlace) {
+    async getItinerary(options) {
         
-        // Appelle NOTRE propre API, pas Google
-        const url = `/api/calculer-itineraire?from=${encodeURIComponent(fromPlace)}&to=${encodeURIComponent(toPlace)}`;
+        // Construit l'URL de base
+        let url = `/api/calculer-itineraire?from=${encodeURIComponent(options.fromPlace)}&to=${encodeURIComponent(options.toPlace)}`;
+        
+        // Ajoute les nouveaux paramètres de temps
+        if (options.dateTime) {
+            if (options.timeMode === 'DEPARTURE') {
+                url += `&departure_time=${encodeURIComponent(options.dateTime)}`;
+            } else if (options.timeMode === 'ARRIVAL') {
+                url += `&arrival_time=${encodeURIComponent(options.dateTime)}`;
+            }
+        }
         
         const response = await fetch(url);
 
