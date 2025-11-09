@@ -322,28 +322,25 @@ function exitPlannerMode() {
 
 /**
  * ===================================================================
- * FONCTION CALLBACK pour le PlannerPanel
+ * FONCTION CALLBACK pour le PlannerPanel (CORRIGÉE)
  * ===================================================================
+ *
+ * Problème : Le main.js précédent essayait de lire 'options.fromCoords',
+ * mais plannerPanel.js envoie 'options.fromPlace'.
+ *
+ * Solution : Cette fonction se contente de passer l'objet 'options'
+ * tel quel. C'est routingService.js qui se chargera de l'adapter.
  */
 async function handleItineraryRequest(options) {
-    // options contient { fromPlace, toPlace, timeMode, dateTime }
+    // options contient { fromPlace, toPlace, timeMode, dateTime } 
     // envoyé par plannerPanel.js
     
-    // MAIS, routingService.js attend { fromCoords, toCoords, ... }
-    // Nous adaptons l'objet.
-    const serviceOptions = {
-        fromCoords: options.fromCoords, // Utilise les coords
-        toCoords: options.toCoords,     // Utilise les coords
-        isoDateTime: options.dateTime,
-        timeMode: options.timeMode
-    };
-
     console.log(`Demande d'itinéraire...`);
     isPlannerMode = true;
     
     try {
-        // Passe l'objet 'serviceOptions' adapté au service
-        const itineraryData = await routingService.getItinerary(serviceOptions);
+        // Transmet l'objet 'options' (de plannerPanel) directement au service
+        const itineraryData = await routingService.getItinerary(options);
 
         if (itineraryData.error) {
             plannerPanel.showError(itineraryData.error);
@@ -351,6 +348,7 @@ async function handleItineraryRequest(options) {
             return;
         }
 
+        // Le reste de la fonction (affichage) était correct
         const route = itineraryData.routes[0];
         const leg = route.legs[0]; 
 
@@ -367,34 +365,19 @@ async function handleItineraryRequest(options) {
                 return;
             }
 
-            // Utilise la fonction de décodage de notre service
             const stepCoords = routingService.decodePolyline(step.polyline.encodedPolyline);
             allCoords.push(...stepCoords);
 
             let style = {};
 
             if (step.travelMode === 'WALK') {
-                style = {
-                    color: '#6c757d', 
-                    weight: 4,
-                    opacity: 0.8,
-                    dashArray: '5, 10' 
-                };
+                style = { color: '#6c757d', weight: 4, opacity: 0.8, dashArray: '5, 10' };
             } else if (step.travelMode === 'TRANSIT') {
-                
-                // --- CORRECTION (pour l'erreur "reading 'color'") ---
-                // On vérifie si 'step.transitDetails.line' existe.
-                let transitColor = '#2563eb'; // Couleur par défaut
+                let transitColor = '#2563eb'; 
                 if (step.transitDetails && step.transitDetails.line && step.transitDetails.line.color) {
                     transitColor = step.transitDetails.line.color;
                 }
-                // --- FIN DE LA CORRECTION ---
-
-                style = {
-                    color: transitColor,
-                    weight: 6,
-                    opacity: 0.9
-                };
+                style = { color: transitColor, weight: 6, opacity: 0.9 };
             } else {
                 style = { color: '#6c757d', weight: 4 };
             }
@@ -402,7 +385,6 @@ async function handleItineraryRequest(options) {
             L.polyline(stepCoords, style).addTo(mapRenderer.itineraryLayer);
         });
 
-        // (Le reste de la fonction : marqueurs, zoom, affichage... reste identique)
         const startPoint = [leg.startLocation.latLng.latitude, leg.startLocation.latLng.longitude];
         L.marker(startPoint, { 
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
