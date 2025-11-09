@@ -1,6 +1,6 @@
 /**
  * Fichier : /js/plannerPanel.js
- * VERSION CORRIGÉE - Utilise le nouveau chargeur d'API Google
+ * VERSION CORRIGÉE - Utilise le nouveau chargeur d'API Google (v=beta)
  */
 
 export class PlannerPanel {
@@ -51,6 +51,8 @@ export class PlannerPanel {
             // Charge la bibliothèque 'Places' et 'Core'
             // 'Core' est nécessaire pour que les composants <gmp-place-autocomplete> fonctionnent
             try {
+                // IMPORTANT: Ces lignes importent les bibliothèques nécessaires
+                // pour "activer" les balises <gmp-place-autocomplete> dans le HTML.
                 await google.maps.importLibrary("core");
                 await google.maps.importLibrary("places");
                 
@@ -93,6 +95,7 @@ export class PlannerPanel {
         // Écoute l'événement 'gmp-placechange' pour le champ DÉPART
         // Cet événement n'existe que si la bibliothèque 'places' est chargée
         this.fromAutocompleteElement.addEventListener('gmp-placechange', async () => {
+            // .place est la nouvelle façon d'obtenir les détails
             const place = this.fromAutocompleteElement.place;
             
             if (!place) {
@@ -103,11 +106,13 @@ export class PlannerPanel {
             try {
                 // S'assure que les champs de géométrie sont chargés si nécessaire
                 if (!place.geometry) {
-                    await place.fetchFields({ fields: ['name', 'geometry'] });
+                    await place.fetchFields({ fields: ['name', 'geometry', 'formattedAddress'] });
                 }
 
                 if (place.geometry && place.geometry.location) {
+                    // Sauvegarde les coordonnées
                     this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
+                    // Met à jour la valeur de l'input (que l'utilisateur voit)
                     this.fromInput.value = place.name || place.formattedAddress || '';
                 } else {
                     this.fromCoords = null;
@@ -129,12 +134,12 @@ export class PlannerPanel {
 
             try {
                 if (!place.geometry) {
-                    await place.fetchFields({ fields: ['name', 'geometry'] });
+                    await place.fetchFields({ fields: ['name', 'geometry', 'formattedAddress'] });
                 }
                 
                 if (place.geometry && place.geometry.location) {
                     this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
-                    this.toInput.value = place.name || place.formattedAddress || '';
+                    this.fromInput.value = place.name || place.formattedAddress || '';
                 } else {
                     this.toCoords = null;
                 }
