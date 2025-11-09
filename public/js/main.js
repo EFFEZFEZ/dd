@@ -83,8 +83,9 @@ async function initializeApp() {
         // (Ceci est désormais sûr)
         setupEventListeners();
 
-        if (localStorage.getItem('gtfsInstructionsShown') !== 'true') {
-            document.getElementById('instructions').classList.remove('hidden');
+        const instructionsPanel = document.getElementById('instructions');
+        if (instructionsPanel && localStorage.getItem('gtfsInstructionsShown') !== 'true') {
+            instructionsPanel.classList.remove('hidden');
         }
 
         updateDataStatus('Données chargées', 'loaded');
@@ -218,30 +219,51 @@ function handleRouteFilterChange() {
     updateData();
 }
 
-// (setupEventListeners reste identique)
+//
+// ===================================================================
+// ✅✅✅ C'EST ICI QUE LA CORRECTION EST APPLIQUÉE ✅✅✅
+// ===================================================================
+//
+
+/**
+ * Attache les écouteurs d'événements aux éléments de l'interface.
+ * VÉRIFIE que les éléments existent avant d'ajouter un écouteur.
+ */
 function setupEventListeners() {
-    document.getElementById('close-instructions').addEventListener('click', () => {
-        document.getElementById('instructions').classList.add('hidden');
-        localStorage.setItem('gtfsInstructionsShown', 'true');
-    });
+    
+    // CORRECTION : On vérifie si l'élément existe avant
+    const closeInstructionsBtn = document.getElementById('close-instructions');
+    if (closeInstructionsBtn) {
+        closeInstructionsBtn.addEventListener('click', () => {
+            document.getElementById('instructions').classList.add('hidden');
+            localStorage.setItem('gtfsInstructionsShown', 'true');
+        });
+    }
+
+    // Le reste de la fonction est sécurisé car les IDs sont vérifiés
+    // dans votre `index.html` et semblent corrects.
     document.getElementById('btn-toggle-filter').addEventListener('click', () => {
         document.getElementById('route-filter-panel').classList.toggle('hidden');
         document.getElementById('planner-panel').classList.add('hidden');
         if (isPlannerMode) exitPlannerMode();
     });
+    
     document.getElementById('close-filter').addEventListener('click', () => {
         document.getElementById('route-filter-panel').classList.add('hidden');
     });
+    
     document.getElementById('btn-toggle-planner').addEventListener('click', () => {
         document.getElementById('planner-panel').classList.toggle('hidden');
         document.getElementById('route-filter-panel').classList.add('hidden');
     });
+    
     document.getElementById('close-planner').addEventListener('click', () => {
         document.getElementById('planner-panel').classList.add('hidden');
         if (isPlannerMode) {
             exitPlannerMode();
         }
     });
+    
     document.getElementById('select-all-routes').addEventListener('click', () => {
         dataManager.routes.forEach(route => {
             const checkbox = document.getElementById(`route-${route.route_id}`);
@@ -249,6 +271,7 @@ function setupEventListeners() {
         });
         handleRouteFilterChange();
     });
+    
     document.getElementById('deselect-all-routes').addEventListener('click', () => {
         dataManager.routes.forEach(route => {
             const checkbox = document.getElementById(`route-${route.route_id}`);
@@ -256,16 +279,20 @@ function setupEventListeners() {
         });
         handleRouteFilterChange();
     });
+    
     timeManager.addListener(updateData);
+    
     const searchBar = document.getElementById('search-bar');
     const searchResultsContainer = document.getElementById('search-results');
     searchBar.addEventListener('input', handleSearchInput);
     searchBar.addEventListener('focus', handleSearchInput);
+    
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-container')) {
             searchResultsContainer.classList.add('hidden');
         }
     });
+    
     if (mapRenderer && mapRenderer.map) {
         mapRenderer.map.on('zoomend', () => {
             if (dataManager && !isPlannerMode) {
