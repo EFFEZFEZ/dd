@@ -4,7 +4,8 @@
  * MIS À JOUR :
  * 1. Utilise la nouvelle API "Place Autocomplete" de Google.
  * 2. Lit le nouveau format de réponse de "Routes API" (corrige "Invalid Date").
- * 3. AJOUT: Lit les champs de date/heure et les pré-remplit.
+ * 3. Utilise les nouveaux onglets "Partir"/"Arriver" au lieu du <select>.
+ * 4. Affiche un message d'erreur clair (pour l'erreur 503).
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -21,11 +22,13 @@ export class PlannerPanel {
         this.summaryContainer = document.getElementById('itinerary-summary');
         this.stepsContainer = document.getElementById('itinerary-steps');
 
-        // === NOUVEAUX CHAMPS ===
-        this.timeModeSelect = document.getElementById('planner-time-mode');
+        // === NOUVEAUX CHAMPS (Onglets) ===
+        this.departureTab = document.getElementById('planner-mode-departure');
+        this.arrivalTab = document.getElementById('planner-mode-arrival');
         this.dateInput = document.getElementById('planner-date');
         this.timeInput = document.getElementById('planner-time');
-        // =======================
+        this.timeMode = 'DEPARTURE'; // État par défaut
+        // ==============================
 
         this.fromCoords = null;
         this.toCoords = null;
@@ -42,7 +45,7 @@ export class PlannerPanel {
             this.initAutocomplete();
         }
     }
-
+    
     /**
      * NOUVEAU: Pré-remplit les champs date/heure avec la date/heure actuelles
      */
@@ -105,12 +108,26 @@ export class PlannerPanel {
     }
 
     bindEvents() {
+        // === GESTION DES ONGLETS ===
+        this.departureTab.addEventListener('click', () => {
+            this.timeMode = 'DEPARTURE';
+            this.departureTab.classList.add('active');
+            this.arrivalTab.classList.remove('active');
+        });
+        
+        this.arrivalTab.addEventListener('click', () => {
+            this.timeMode = 'ARRIVAL';
+            this.arrivalTab.classList.add('active');
+            this.departureTab.classList.remove('active');
+        });
+        // =========================
+
         this.searchButton.addEventListener('click', () => {
             const from = this.fromCoords || this.fromInput.value;
             const to = this.toCoords || this.toInput.value;
 
             // === LECTURE DES NOUVEAUX CHAMPS ===
-            const timeMode = this.timeModeSelect.value;
+            const timeMode = this.timeMode; // Lit depuis l'état du panneau
             const date = this.dateInput.value;
             const time = this.timeInput.value;
 
@@ -120,7 +137,6 @@ export class PlannerPanel {
             }
             
             // Combine date et time en ISO string (UTC)
-            // L'API Google requiert un format ISO 8601
             const isoDateTime = `${date}T${time}:00Z`;
             
             const options = {
@@ -163,7 +179,8 @@ export class PlannerPanel {
 
     showError(message) {
         this.hideLoading();
-        this.summaryContainer.innerHTML = `<p style="color: red; padding: 0 1.5rem;">${message}</p>`;
+        // Affiche le message d'erreur géré (grâce au fix du routingService)
+        this.summaryContainer.innerHTML = `<p style="color: #dc2626; padding: 0 1.5rem;">${message}</p>`;
     }
 
     /**
