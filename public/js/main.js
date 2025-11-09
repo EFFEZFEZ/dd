@@ -3,6 +3,8 @@
  *
  * MIS À JOUR :
  * 1. Lit le nouveau format de "Routes API" pour dessiner l'itinéraire.
+ * 2. CORRECTION: Ajoute une vérification de sécurité pour 'step.transitDetails.line'
+ * qui peut être 'undefined' (cause de l'erreur 'reading color').
  */
 
 import { DataManager } from './dataManager.js';
@@ -334,13 +336,17 @@ async function handleItineraryRequest(fromPlace, toPlace) {
         const allCoords = []; 
 
         leg.steps.forEach(step => {
-            // CORRECTION: 'polyline.points' -> 'polyline.encodedPolyline'
+            // Ajout d'une vérification de sécurité. Si l'étape est vide ou n'a pas de polyligne, on l'ignore.
+            if (!step || !step.polyline || !step.polyline.encodedPolyline) {
+                console.warn("Étape d'itinéraire ignorée (manque polyligne):", step);
+                return;
+            }
+
             const stepCoords = routingService.decodePolyline(step.polyline.encodedPolyline);
             allCoords.push(...stepCoords);
 
             let style = {};
 
-            // CORRECTION: 'travel_mode' -> 'travelMode'
             if (step.travelMode === 'WALK') {
                 style = {
                     color: '#6c757d', 
@@ -349,8 +355,15 @@ async function handleItineraryRequest(fromPlace, toPlace) {
                     dashArray: '5, 10' 
                 };
             } else if (step.travelMode === 'TRANSIT') {
-                // CORRECTION: 'transit_details' -> 'transitDetails'
-                const transitColor = step.transitDetails.line.color || '#2563eb';
+                
+                // --- CORRECTION (pour l'erreur "reading 'color'") ---
+                // On vérifie si 'step.transitDetails.line' existe.
+                let transitColor = '#2563eb'; // Couleur par défaut
+                if (step.transitDetails && step.transitDetails.line && step.transitDetails.line.color) {
+                    transitColor = step.transitDetails.line.color;
+                }
+                // --- FIN DE LA CORRECTION ---
+
                 style = {
                     color: transitColor,
                     weight: 6,
@@ -363,21 +376,20 @@ async function handleItineraryRequest(fromPlace, toPlace) {
             L.polyline(stepCoords, style).addTo(mapRenderer.itineraryLayer);
         });
 
-        // CORRECTION: 'start_location' -> 'startLocation.latLng.latitude' etc.
+        // (Le reste de la fonction : marqueurs, zoom, affichage... reste identique)
         const startPoint = [leg.startLocation.latLng.latitude, leg.startLocation.latLng.longitude];
         L.marker(startPoint, { 
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
         .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Départ:</b> ${leg.startAddress}`); // 'start_address' -> 'startAddress'
+        .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
 
-        // CORRECTION: 'end_location' -> 'endLocation.latLng.latitude' etc.
         const endPoint = [leg.endLocation.latLng.latitude, leg.endLocation.latLng.longitude];
          L.marker(endPoint, { 
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
         .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`); // 'end_address' -> 'endAddress'
+        .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
 
         if (allCoords.length > 0) {
             const bounds = L.latLngBounds(allCoords);
