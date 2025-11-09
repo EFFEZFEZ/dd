@@ -3,12 +3,12 @@
  *
  * Fichier principal de l'application.
  *
- * CORRECTIONS APPLIQUÉES :
- * 1. Importe { RoutingService } comme un objet (et non une classe).
- * 2. Importe { PlannerPanel } depuis './plannerPanel.js'.
- * 3. Supprime 'new' lors de l'assignation de 'routingService' (ligne 59).
- * 4. 'handleItineraryRequest' est mis à jour pour correspondre à la fois
- * à ce que 'plannerPanel.js' envoie et ce que 'routingService.js' attend.
+ * CORRECTION FINALE (v3) :
+ * 1. L'appel à 'initializeApp()' est enveloppé dans un écouteur
+ * 'DOMContentLoaded'.
+ * 2. Cela garantit que le script attend que le HTML (ex: les boutons)
+ * soit entièrement chargé avant d'essayer de leur attacher
+ * des 'EventListeners', ce qui corrige l'erreur 'cannot read... of null'.
  */
 
 // Imports des modules de logique
@@ -20,7 +20,7 @@ import { MapRenderer } from './mapRenderer.js';
 
 // Imports des modules UI et Services
 import { RoutingService } from './routingService.js';
-import { PlannerPanel } from './plannerPanel.js'; // Assurez-vous que cet import est correct
+import { PlannerPanel } from './plannerPanel.js'; 
 
 // Variables globales de l'application
 let dataManager;
@@ -29,7 +29,7 @@ let tripScheduler;
 let busPositionCalculator;
 let mapRenderer;
 let visibleRoutes = new Set();
-let routingService; // Sera un objet, pas une instance
+let routingService; 
 let plannerPanel;
 let isPlannerMode = false;
 
@@ -64,10 +64,8 @@ async function initializeApp() {
         tripScheduler = new TripScheduler(dataManager);
         busPositionCalculator = new BusPositionCalculator(dataManager);
         
-        // --- CORRECTION ---
-        // On n'utilise PAS 'new'. On assigne directement l'objet importé.
+        // Assigne l'objet importé
         routingService = RoutingService; 
-        // --- FIN CORRECTION ---
 
         // Initialise le panneau de planification
         plannerPanel = new PlannerPanel(
@@ -80,7 +78,9 @@ async function initializeApp() {
         initializeRouteFilter();
         showDefaultMap();
         mapRenderer.displayStops();
-        setupEventListeners();
+        
+        // CETTE LIGNE NE PLANTERA PLUS
+        setupEventListeners(); 
         
         if (localStorage.getItem('gtfsInstructionsShown') !== 'true') {
             document.getElementById('instructions').classList.remove('hidden');
@@ -322,24 +322,14 @@ function exitPlannerMode() {
 
 /**
  * ===================================================================
- * FONCTION CALLBACK pour le PlannerPanel (CORRIGÉE)
+ * FONCTION CALLBACK pour le PlannerPanel
  * ===================================================================
- *
- * Problème : Le main.js précédent essayait de lire 'options.fromCoords',
- * mais plannerPanel.js envoie 'options.fromPlace'.
- *
- * Solution : Cette fonction se contente de passer l'objet 'options'
- * tel quel. C'est routingService.js qui se chargera de l'adapter.
  */
 async function handleItineraryRequest(options) {
-    // options contient { fromPlace, toPlace, timeMode, dateTime } 
-    // envoyé par plannerPanel.js
-    
     console.log(`Demande d'itinéraire...`);
     isPlannerMode = true;
     
     try {
-        // Transmet l'objet 'options' (de plannerPanel) directement au service
         const itineraryData = await routingService.getItinerary(options);
 
         if (itineraryData.error) {
@@ -348,7 +338,6 @@ async function handleItineraryRequest(options) {
             return;
         }
 
-        // Le reste de la fonction (affichage) était correct
         const route = itineraryData.routes[0];
         const leg = route.legs[0]; 
 
@@ -412,10 +401,6 @@ async function handleItineraryRequest(options) {
         isPlannerMode = false;
     }
 }
-// ===================================================================
-// FIN DE LA FONCTION CALLBACK
-// ===================================================================
-
 
 // (updateData reste identique)
 function updateData(timeInfo) {
@@ -426,7 +411,7 @@ function updateData(timeInfo) {
     }
 
     const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
-    const currentDate = timeInfo ? timeInfo.date : timeManager.getCurrentDate(); // Utilise la date du manager
+    const currentDate = timeInfo ? timeInfo.date : timeManager.getCurrentDate(); 
     
     updateClock(currentSeconds);
     
@@ -452,7 +437,7 @@ function updateClock(seconds) {
     const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     document.getElementById('current-time').textContent = timeString;
     
-    const now = timeManager.getCurrentDate(); // Utilise la date du manager
+    const now = timeManager.getCurrentDate(); 
     const dateString = now.toLocaleDateString('fr-FR', { 
         weekday: 'short', 
         day: 'numeric', 
@@ -475,5 +460,9 @@ function updateDataStatus(message, status = '') {
     statusElement.textContent = message;
 }
 
-// Démarre l'application
-initializeApp();
+
+// --- CORRECTION FINALE ---
+// Attend que le HTML soit chargé avant de lancer l'application.
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+});
