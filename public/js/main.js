@@ -91,8 +91,16 @@ async function initializeApp() {
         updateData(); 
         
     } catch (error) {
+        // Logique de 'catch' (conforme à l'analyse)
         console.error('Erreur lors de l\'initialisation:', error);
         updateDataStatus('Erreur de chargement', 'error');
+        // Affiche une erreur claire à l'utilisateur
+        const body = document.querySelector('body');
+        body.innerHTML = `<div class="init-error" style="padding: 20px; text-align: center; color: #dc2626;">
+            <h1>Erreur de l'application</h1>
+            <p>Impossible de charger les données essentielles (ex: horaires de bus). L'application ne peut pas démarrer.</p>
+            <p>Détail technique : ${error.message}</p>
+        </div>`;
     }
 }
 
@@ -322,7 +330,7 @@ function exitPlannerMode() {
 
 /**
  * ===================================================================
- * FONCTION CALLBACK pour le PlannerPanel
+ * FONCTION CALLBACK pour le PlannerPanel (Mise à jour pour l'analyse)
  * ===================================================================
  */
 async function handleItineraryRequest(options) {
@@ -333,6 +341,7 @@ async function handleItineraryRequest(options) {
         const itineraryData = await routingService.getItinerary(options);
 
         if (itineraryData.error) {
+            // Conforme à la recommandation 4.2
             plannerPanel.showError(itineraryData.error);
             isPlannerMode = false;
             return;
@@ -396,9 +405,12 @@ async function handleItineraryRequest(options) {
         plannerPanel.displayItinerary(itineraryData);
 
     } catch (error) {
+        // Conforme à la recommandation 4.2
         console.error("Erreur lors de la recherche d'itinéraire:", error);
         plannerPanel.showError(error.message || "Erreur de connexion au service d'itinéraire.");
         isPlannerMode = false;
+        
+        // On ne cache pas le 'loading' ici, 'showError' le fait déjà.
     }
 }
 
