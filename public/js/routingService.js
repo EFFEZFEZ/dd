@@ -1,11 +1,7 @@
 /**
  * Fichier : /js/routingService.js
  *
- * S'exécute dans le navigateur.
- * Il appelle notre propre fonction serverless /api/calculer-itineraire
- * pour obtenir un itinéraire. Il n'a aucune connaissance de la clé API.
- *
- * MODIFIÉ: Accepte un objet 'options' et ajoute les paramètres de temps à l'URL.
+ * MODIFIÉ: Gestion des erreurs 503 et non-JSON
  */
 export class RoutingService {
 
@@ -14,10 +10,8 @@ export class RoutingService {
      */
     async getItinerary(options) {
         
-        // Construit l'URL de base
         let url = `/api/calculer-itineraire?from=${encodeURIComponent(options.fromPlace)}&to=${encodeURIComponent(options.toPlace)}`;
         
-        // Ajoute les nouveaux paramètres de temps
         if (options.dateTime) {
             if (options.timeMode === 'DEPARTURE') {
                 url += `&departure_time=${encodeURIComponent(options.dateTime)}`;
@@ -29,14 +23,31 @@ export class RoutingService {
         const response = await fetch(url);
 
         if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || "La recherche d'itinéraire a échoué");
+            // GESTION D'ERREUR AMÉLIORÉE
+            const errorText = await response.text();
+            let errorMessage = `Erreur ${response.status}: ${response.statusText}`;
+
+            if (response.status === 503) {
+                errorMessage = "Le service d'itinéraire est momentanément indisponible (Erreur 503). Vérifiez le serveur API.";
+            } else {
+                try {
+                    // Tente de parser, au cas où ce serait un JSON d'erreur
+                    const err = JSON.parse(errorText);
+                    errorMessage = err.error || errorMessage;
+                } catch (e) {
+                    // Ce n'était pas du JSON, l'erreur est peut-être le texte lui-même
+                    if (errorText.length < 100) { // Évite d'afficher une page HTML
+                        errorMessage = errorText;
+                    }
+                }
+            }
+            
+            console.error("Erreur de l'API d'itinéraire:", errorText);
+            throw new Error(errorMessage);
         }
         
-        const data = await response.json();
-        
-        // Renvoie la réponse (format Google Directions)
-        return data;
+        // Si tout va bien, on assume que c'est du JSON
+        return await response.json();
     }
 
     /**
