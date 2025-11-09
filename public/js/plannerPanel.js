@@ -4,6 +4,7 @@
  * MIS À JOUR :
  * 1. Utilise la nouvelle API "Place Autocomplete" de Google.
  * 2. Lit le nouveau format de réponse de "Routes API" (corrige "Invalid Date").
+ * 3. AJOUT: Lit les champs de date/heure et les pré-remplit.
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -20,9 +21,16 @@ export class PlannerPanel {
         this.summaryContainer = document.getElementById('itinerary-summary');
         this.stepsContainer = document.getElementById('itinerary-steps');
 
+        // === NOUVEAUX CHAMPS ===
+        this.timeModeSelect = document.getElementById('planner-time-mode');
+        this.dateInput = document.getElementById('planner-date');
+        this.timeInput = document.getElementById('planner-time');
+        // =======================
+
         this.fromCoords = null;
         this.toCoords = null;
 
+        this.setDefaultDateTime(); // Pré-remplir la date et l'heure
         this.bindEvents();
         
         // Initialiser l'autocomplétion
@@ -33,6 +41,19 @@ export class PlannerPanel {
         if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
             this.initAutocomplete();
         }
+    }
+
+    /**
+     * NOUVEAU: Pré-remplit les champs date/heure avec la date/heure actuelles
+     */
+    setDefaultDateTime() {
+        const now = new Date();
+        
+        // Ajuste pour le fuseau horaire local
+        const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+        
+        this.dateInput.value = localNow.toISOString().split('T')[0];
+        this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5);
     }
     
     async initAutocomplete() {
@@ -87,10 +108,32 @@ export class PlannerPanel {
         this.searchButton.addEventListener('click', () => {
             const from = this.fromCoords || this.fromInput.value;
             const to = this.toCoords || this.toInput.value;
-            if (from && to) {
-                this.showLoading();
-                this.searchCallback(from, to); 
+
+            // === LECTURE DES NOUVEAUX CHAMPS ===
+            const timeMode = this.timeModeSelect.value;
+            const date = this.dateInput.value;
+            const time = this.timeInput.value;
+
+            if (!from || !to || !date || !time) {
+                alert("Veuillez remplir le départ, l'arrivée, la date et l'heure.");
+                return;
             }
+            
+            // Combine date et time en ISO string (UTC)
+            // L'API Google requiert un format ISO 8601
+            const isoDateTime = `${date}T${time}:00Z`;
+            
+            const options = {
+                fromPlace: from,
+                toPlace: to,
+                timeMode: timeMode,
+                dateTime: isoDateTime
+            };
+            // ===================================
+            
+            this.showLoading();
+            this.searchCallback(options); // Envoyer l'objet options
+            
             this.fromCoords = null;
             this.toCoords = null;
         });
