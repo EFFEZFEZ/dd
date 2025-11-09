@@ -1,13 +1,6 @@
 /**
  * Fichier : /js/plannerPanel.js
- *
- * VERSION MIGRÉE (CORRECTION FINALE v2)
- *
- * 1. SUPPRIME les lignes qui plantaient dans 'initAutocomplete'
- * (ex: .locationBias) car elles sont maintenant dans le HTML.
- * 2. CORRIGE l'écouteur d'événement 'gmp-placechange' pour
- * utiliser 'place.fetchFields()', ce qui est la nouvelle
- * façon correcte de récupérer la géométrie.
+ * VERSION CORRIGÉE - Erreur initMap résolue
  */
 
 export class PlannerPanel {
@@ -17,11 +10,9 @@ export class PlannerPanel {
         this.mapRenderer = mapRenderer;
         this.searchCallback = searchCallback; 
 
-        // Référence aux ÉLÉMENTS d'autocomplétion (les nouveaux)
         this.fromAutocompleteElement = document.getElementById('planner-from-autocomplete');
         this.toAutocompleteElement = document.getElementById('planner-to-autocomplete');
         
-        // Référence aux INPUTS
         this.fromInput = document.getElementById('planner-from');
         this.toInput = document.getElementById('planner-to');
 
@@ -45,15 +36,24 @@ export class PlannerPanel {
         this.setDefaultDateTime();
         this.bindEvents();
         
-        // Définit la fonction 'initMap' globale que Google appellera
-        window.initMap = () => {
-            console.log("Google Maps JS est prêt, initialisation de PlaceAutocompleteElement.");
-            this.initAutocomplete(); 
+        // ✅ CORRECTION : Vérifier si Google Maps est déjà chargé
+        this.waitForGoogleMaps();
+    }
+    
+    /**
+     * ✅ NOUVELLE MÉTHODE : Attendre le chargement de Google Maps
+     */
+    waitForGoogleMaps() {
+        const checkGoogleMaps = () => {
+            if (typeof google !== 'undefined' && google.maps && google.maps.places) {
+                console.log("✅ Google Maps chargé, initialisation de l'autocomplétion");
+                this.initAutocomplete();
+            } else {
+                console.log("⏳ Attente du chargement de Google Maps...");
+                setTimeout(checkGoogleMaps, 100);
+            }
         };
-        // Au cas où le script serait déjà chargé
-        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined' && google.maps.places) {
-            this.initAutocomplete();
-        }
+        checkGoogleMaps();
     }
     
     setDefaultDateTime() {
@@ -64,21 +64,16 @@ export class PlannerPanel {
     }
     
     /**
-     * NOUVELLE MÉTHODE initAutocomplete (CORRIGÉE)
+     * ✅ MÉTHODE CORRIGÉE : initAutocomplete
      */
     initAutocomplete() {
-        if (typeof google === 'undefined' || !google.maps.places || !this.fromAutocompleteElement) {
-            console.error("Échec de l'initialisation de l'autocomplétion. L'élément HTML ou l'API Google est manquant.");
+        if (!this.fromAutocompleteElement || !this.toAutocompleteElement) {
+            console.error("❌ Éléments d'autocomplétion introuvables dans le HTML");
             return;
         }
 
-        // --- SECTION SUPPRIMÉE ---
-        // Les lignes qui définissaient .locationBias, .componentRestrictions, etc.
-        // ont été supprimées car elles provoquaient le crash.
-        // Ces options sont maintenant DANS 'index.html'.
-
-        // Écoute l'événement 'gmp-placechange' (le NOUVEL événement)
-        this.fromAutocompleteElement.addEventListener('gmp-placechange', async (event) => {
+        // Écoute l'événement 'gmp-placechange' pour le champ DÉPART
+        this.fromAutocompleteElement.addEventListener('gmp-placechange', async () => {
             const place = this.fromAutocompleteElement.place;
             
             if (!place) {
@@ -86,46 +81,56 @@ export class PlannerPanel {
                 return;
             }
 
-            // CORRECTION : On doit demander les champs ('fetchFields')
-            await place.fetchFields({ fields: ['name', 'geometry'] });
+            try {
+                await place.fetchFields({ fields: ['name', 'geometry'] });
 
-            if (place.geometry) {
-                this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
-                this.fromInput.value = place.name;
-            } else {
+                if (place.geometry && place.geometry.location) {
+                    this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
+                    this.fromInput.value = place.name || place.formattedAddress || '';
+                } else {
+                    this.fromCoords = null;
+                }
+            } catch (error) {
+                console.error("Erreur lors de la récupération du lieu de départ:", error);
                 this.fromCoords = null;
             }
         });
         
-        this.toAutocompleteElement.addEventListener('gmp-placechange', async (event) => {
-             const place = this.toAutocompleteElement.place;
+        // Écoute l'événement 'gmp-placechange' pour le champ ARRIVÉE
+        this.toAutocompleteElement.addEventListener('gmp-placechange', async () => {
+            const place = this.toAutocompleteElement.place;
 
-             if (!place) {
+            if (!place) {
                 this.toCoords = null;
                 return;
             }
 
-            await place.fetchFields({ fields: ['name', 'geometry'] });
-             
-             if (place.geometry) {
-                this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
-                this.toInput.value = place.name;
-            } else {
+            try {
+                await place.fetchFields({ fields: ['name', 'geometry'] });
+                
+                if (place.geometry && place.geometry.location) {
+                    this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
+                    this.toInput.value = place.name || place.formattedAddress || '';
+                } else {
+                    this.toCoords = null;
+                }
+            } catch (error) {
+                console.error("Erreur lors de la récupération du lieu d'arrivée:", error);
                 this.toCoords = null;
             }
         });
 
+        // Reset des coordonnées si l'utilisateur efface les champs
         this.fromInput.addEventListener('input', () => {
             if (this.fromInput.value === '') this.fromCoords = null;
         });
         this.toInput.addEventListener('input', () => {
             if (this.toInput.value === '') this.toCoords = null;
         });
+
+        console.log("✅ Autocomplétion Google Places initialisée avec succès");
     }
 
-    /**
-     * bindEvents (simplifié)
-     */
     bindEvents() {
         this.departureTab.addEventListener('click', () => {
             this.timeMode = 'DEPARTURE';
@@ -140,7 +145,6 @@ export class PlannerPanel {
         });
 
         this.searchButton.addEventListener('click', () => {
-            
             const from = this.fromCoords;
             const to = this.toCoords;
             const timeMode = this.timeMode;
@@ -158,14 +162,13 @@ export class PlannerPanel {
             
             const isoDateTime = `${date}T${time}:00Z`;
             const options = {
-                fromPlace: from, // Garanti d'être "lat,lon"
-                toPlace: to,     // Garanti d'être "lat,lon"
+                fromPlace: from,
+                toPlace: to,
                 timeMode: timeMode, 
                 dateTime: isoDateTime
             };
             
             this.showLoading("Calcul de l'itinéraire...");
-            
             this.searchCallback(options); 
         });
 
@@ -175,7 +178,9 @@ export class PlannerPanel {
                     this.fromInput.value = "Ma position"; 
                     this.fromCoords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`; 
                 })
-                .on('locationerror', (e) => alert("Impossible de vous localiser."));
+                .on('locationerror', () => {
+                    alert("Impossible de vous localiser. Vérifiez les permissions de votre navigateur.");
+                });
         });
     }
     
@@ -358,7 +363,7 @@ export class PlannerPanel {
                 `;
             } 
             else {
-                iconStyle = `style="background-color: #6c757d;"`; // Gris
+                iconStyle = `style="background-color: #6c757d;"`; 
                 details = `
                     <strong>${instruction}</strong>
                     <div class="leg-time-info">
