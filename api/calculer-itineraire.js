@@ -3,9 +3,9 @@
  *
  * VERSION SÉCURISÉE & ROBUSTE (pour Netlify)
  *
- * CORRECTION : Netlify ne comprend pas "request.query".
- * On utilise "new URL(request.url).searchParams" pour lire
- * les paramètres "from" et "to", ce qui corrige le crash 502.
+ * CORRECTION : L'erreur "response.status is not a function"
+ * signifie que Netlify n'utilise pas le même objet 'response' que Vercel.
+ * On doit 'return new Response(...)' au lieu d'appeler response.status().
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -27,31 +27,40 @@ function formatPlace(input) {
     return null;
 }
 
-export default async function handler(request, response) {
+// CORRECTION : La signature du handler Netlify est (request, context)
+// On n'a besoin que de 'request'.
+export default async function handler(request) {
     
     try {
-        // --- CORRECTION NETLIFY (pour l'erreur 502) ---
-        // On parse l'URL pour trouver les paramètres
+        // CORRECTION : On lit l'URL depuis l'objet 'request'
         const url = new URL(request.url);
         const from = url.searchParams.get('from');
         const to = url.searchParams.get('to');
-        // --- FIN DE LA CORRECTION ---
 
         const apiKey = process.env.BACKEND_API_KEY;
 
         if (!apiKey) {
-            return response.status(500).json({ error: "Clé API Backend non configurée sur le serveur Netlify." });
+            return new Response(JSON.stringify({ error: "Clé API Backend non configurée sur le serveur Netlify." }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
         
         if (!from || from.trim() === '' || !to || to.trim() === '') {
-            return response.status(400).json({ error: "Les champs 'Départ' et 'Arrivée' sont requis." });
+            return new Response(JSON.stringify({ error: "Les champs 'Départ' et 'Arrivée' sont requis." }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
 
         const fromPlace = formatPlace(from);
         const toPlace = formatPlace(to);
 
         if (!fromPlace || !toPlace) {
-             return response.status(400).json({ error: "Adresses de départ ou d'arrivée invalides." });
+             return new Response(JSON.stringify({ error: "Adresses de départ ou d'arrivée invalides." }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
 
         const nowInSeconds = Math.floor(Date.now() / 1000);
@@ -63,13 +72,24 @@ export default async function handler(request, response) {
 
         if (data.status !== 'OK') {
             console.error("Erreur API Google:", data.status, data.error_message);
-            return response.status(500).json({ error: data.error_message || data.status, status: data.status });
+            return new Response(JSON.stringify({ error: data.error_message || data.status, status: data.status }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
 
-        response.status(200).json(data);
+        // Succès : on retourne la réponse de Google
+        return new Response(JSON.stringify(data), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
 
     } catch (error) {
+        // Erreur interne (crash)
         console.error("Erreur interne non gérée dans la fonction API:", error);
-        response.status(500).json({ error: 'Erreur serveur interne. Vérifiez les logs Netlify.' });
+        return new Response(JSON.stringify({ error: 'Erreur serveur interne. Vérifiez les logs Netlify.' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
     }
 }
