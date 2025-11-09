@@ -1,10 +1,11 @@
 /**
  * Fichier : /js/plannerPanel.js
  *
- * MIS À JOUR MAJEURE V2 :
- * 1. AJOUT: Logique `groupSteps` pour fusionner les étapes de marche consécutives.
- * 2. CORRECTION: `createLegStep` filtre les instructions "undefined" ou vides.
- * 3. Le support des 3 trajets (onglets) est CONSERVÉ.
+ * CETTE VERSION CORRIGE :
+ * 1. REGROUPE les étapes de marche (corrige "trop dans la marche").
+ * 2. FILTRE les étapes "undefined" ou vides.
+ * 3. AFFICHE les onglets pour 3 trajets (si le backend les envoie).
+ * 4. AFFICHE la couleur et les détails du bus (si le backend les envoie).
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -158,6 +159,9 @@ export class PlannerPanel {
         let currentWalkStep = null;
 
         for (const step of steps) {
+            // CORRECTION: S'assurer que 'step' n'est pas null
+            if (!step) continue;
+
             if (step.travelMode === 'WALK') {
                 if (!currentWalkStep) {
                     // C'est la première étape de marche d'un bloc
@@ -174,7 +178,7 @@ export class PlannerPanel {
                 currentWalkStep.distanceMeters += step.distanceMeters || 0;
                 currentWalkStep.staticDuration = (
                     parseInt(currentWalkStep.staticDuration.slice(0, -1)) + 
-                    parseInt(step.staticDuration.slice(0, -1))
+                    parseInt(step.staticDuration.slice(0, -1) || 0)
                 ) + "s";
             } else {
                 // C'est une étape de TRANSIT ou autre
@@ -290,7 +294,7 @@ export class PlannerPanel {
         el.className = 'itinerary-leg';
         el.dataset.mode = step.travelMode;
 
-        const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1)));
+        const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1) || 0));
         
         const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
         const endTime = step.arrivalTime ? new Date(step.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -312,7 +316,7 @@ export class PlannerPanel {
             icon = 'directions_bus';
             const transit = step.transitDetails;
             
-            // Cas 1: L'API a renvoyé les détails (le cas idéal)
+            // Cas 1: L'API a renvoyé les détails (le cas idéal, grâce au Header)
             if (transit && transit.line) {
                 const line = transit.line;
                 const routeColor = line.color || '#3388ff';
