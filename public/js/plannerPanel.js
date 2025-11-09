@@ -1,15 +1,13 @@
 /**
  * Fichier : /js/plannerPanel.js
  *
- * VERSION MIGRÉE (CORRECTION FINALE)
+ * VERSION MIGRÉE (CORRECTION FINALE v2)
  *
- * 1. N'UTILISE PLUS `geocodingService.js`.
- * 2. N'UTILISE PLUS l'ancien `new Autocomplete(...)`.
- * 3. Utilise le nouveau composant HTML <gmp-place-autocomplete> (nécessite la mise à jour du HTML).
- * 4. 'initAutocomplete' se lie aux nouveaux éléments.
- * 5. 'bindEvents' est simplifié car nous sommes GARANTIS d'avoir des coordonnées.
- * 6. L'erreur 400 'INVALID_ARGUMENT' est résolue.
- * 7. Les suggestions de lieux sont réparées.
+ * 1. SUPPRIME les lignes qui plantaient dans 'initAutocomplete'
+ * (ex: .locationBias) car elles sont maintenant dans le HTML.
+ * 2. CORRIGE l'écouteur d'événement 'gmp-placechange' pour
+ * utiliser 'place.fetchFields()', ce qui est la nouvelle
+ * façon correcte de récupérer la géométrie.
  */
 
 export class PlannerPanel {
@@ -23,7 +21,7 @@ export class PlannerPanel {
         this.fromAutocompleteElement = document.getElementById('planner-from-autocomplete');
         this.toAutocompleteElement = document.getElementById('planner-to-autocomplete');
         
-        // Référence aux INPUTS (comme avant)
+        // Référence aux INPUTS
         this.fromInput = document.getElementById('planner-from');
         this.toInput = document.getElementById('planner-to');
 
@@ -40,23 +38,19 @@ export class PlannerPanel {
         this.timeInput = document.getElementById('planner-time');
         this.timeMode = 'DEPARTURE'; 
 
-        // Stockera les coordonnées au format "lat,lon"
         this.fromCoords = null;
         this.toCoords = null;
         this.currentRoutes = []; 
 
         this.setDefaultDateTime();
-        
-        // Lie les événements (clics, etc.)
         this.bindEvents();
-
+        
         // Définit la fonction 'initMap' globale que Google appellera
-        // une fois son script chargé (grâce à &callback=initMap)
         window.initMap = () => {
             console.log("Google Maps JS est prêt, initialisation de PlaceAutocompleteElement.");
             this.initAutocomplete(); 
         };
-        // Au cas où le script serait déjà chargé (ex: navigation rapide)
+        // Au cas où le script serait déjà chargé
         if (typeof google !== 'undefined' && typeof google.maps !== 'undefined' && google.maps.places) {
             this.initAutocomplete();
         }
@@ -70,8 +64,9 @@ export class PlannerPanel {
     }
     
     /**
-     * NOUVELLE MÉTHODE initAutocomplete
-     * Se lie aux éléments <gmp-place-autocomplete>
+     * NOUVELLE MÉTHODE initAutocomplete (CORRIGÉE)
+     * Supprime les lignes qui plantent.
+     * Ajoute 'fetchFields' dans les listeners.
      */
     initAutocomplete() {
         if (typeof google === 'undefined' || !google.maps.places || !this.fromAutocompleteElement) {
@@ -79,43 +74,44 @@ export class PlannerPanel {
             return;
         }
 
-        const center = new google.maps.LatLng(45.1833, 0.7167);
-        const defaultBounds = new google.maps.LatLngBounds(
-            new google.maps.LatLng(center.lat - 0.3, center.lng - 0.3),
-            new google.maps.LatLng(center.lat + 0.3, center.lng + 0.3)
-        );
-
-        // Options pour les deux champs
-        const options = {
-            locationBias: defaultBounds,
-            componentRestrictions: { country: "fr" },
-            fields: ["name", "geometry.location"],
-        };
-
-        // Applique les options aux éléments HTML
-        this.fromAutocompleteElement.placeSearchFields = options.fields;
-        this.fromAutocompleteElement.locationBias = options.locationBias;
-        this.fromAutocompleteElement.componentRestrictions = options.componentRestrictions;
-
-        this.toAutocompleteElement.placeSearchFields = options.fields;
-        this.toAutocompleteElement.locationBias = options.locationBias;
-        this.toAutocompleteElement.componentRestrictions = options.componentRestrictions;
+        // --- SECTION SUPPRIMÉE ---
+        // Les lignes qui définissaient .locationBias, .componentRestrictions, etc.
+        // ont été supprimées car elles provoquaient le crash.
+        // Ces options sont maintenant DANS 'index.html'.
 
         // Écoute l'événement 'gmp-placechange' (le NOUVEL événement)
-        this.fromAutocompleteElement.addEventListener('gmp-placechange', (event) => {
+        this.fromAutocompleteElement.addEventListener('gmp-placechange', async (event) => {
+            // 'place' est une promesse
             const place = this.fromAutocompleteElement.place;
-            if (place && place.geometry) {
-                // On stocke les coordonnées au format "lat,lon"
+            
+            if (!place) {
+                this.fromCoords = null;
+                return;
+            }
+
+            // CORRECTION : On doit demander les champs ('fetchFields')
+            await place.fetchFields({ fields: ['name', 'geometry'] });
+
+            if (place.geometry) {
                 this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
-                this.fromInput.value = place.name; // Met à jour l'input interne
+                this.fromInput.value = place.name;
             } else {
                 this.fromCoords = null;
             }
         });
         
-        this.toAutocompleteElement.addEventListener('gmp-placechange', (event) => {
+        this.toAutocompleteElement.addEventListener('gmp-placechange', async (event) => {
              const place = this.toAutocompleteElement.place;
-             if (place && place.geometry) {
+
+             if (!place) {
+                this.toCoords = null;
+                return;
+            }
+
+            // CORRECTION : On doit demander les champs ('fetchFields')
+            await place.fetchFields({ fields: ['name', 'geometry'] });
+             
+             if (place.geometry) {
                 this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
                 this.toInput.value = place.name;
             } else {
@@ -133,8 +129,7 @@ export class PlannerPanel {
     }
 
     /**
-     * NOUVELLE MÉTHODE bindEvents (simplifiée)
-     * N'a plus besoin de 'Geocoding-First'
+     * bindEvents (simplifié)
      */
     bindEvents() {
         this.departureTab.addEventListener('click', () => {
@@ -149,18 +144,14 @@ export class PlannerPanel {
             this.departureTab.classList.remove('active');
         });
 
-        // Le listener n'a plus besoin d'être 'async'
         this.searchButton.addEventListener('click', () => {
             
-            // 1. On utilise les coordonnées stockées.
             const from = this.fromCoords;
             const to = this.toCoords;
-            
             const timeMode = this.timeMode;
             const date = this.dateInput.value;
             const time = this.timeInput.value;
 
-            // 2. Validation : On exige les coordonnées (sélection obligatoire)
             if (!from || !to) {
                 this.showError("Veuillez sélectionner un lieu de départ et d'arrivée valides dans les suggestions.");
                 return;
@@ -180,9 +171,7 @@ export class PlannerPanel {
             
             this.showLoading("Calcul de l'itinéraire...");
             
-            // 3. On appelle le backend (via main.js).
-            // On sait que le backend recevra des coordonnées, 
-            // ce qui résout l'erreur 'INVALID_ARGUMENT'.
+            // Appelle 'handleItineraryRequest' dans main.js
             this.searchCallback(options); 
         });
 
