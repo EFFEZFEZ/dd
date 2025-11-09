@@ -1,6 +1,6 @@
 /**
  * Fichier : /js/plannerPanel.js
- * VERSION CORRIGÉE - Erreur initMap résolue
+ * VERSION CORRIGÉE - Utilise le nouveau chargeur d'API Google
  */
 
 export class PlannerPanel {
@@ -36,24 +36,40 @@ export class PlannerPanel {
         this.setDefaultDateTime();
         this.bindEvents();
         
-        // ✅ CORRECTION : Vérifier si Google Maps est déjà chargé
+        // ✅ CORRECTION : Utilise le nouvel événement de l'API Loader
         this.waitForGoogleMaps();
     }
     
     /**
-     * ✅ NOUVELLE MÉTHODE : Attendre le chargement de Google Maps
+     * ✅ NOUVELLE MÉTHODE : Attend le 'callback' de l'API Loader
      */
     waitForGoogleMaps() {
-        const checkGoogleMaps = () => {
-            if (typeof google !== 'undefined' && google.maps && google.maps.places) {
-                console.log("✅ Google Maps chargé, initialisation de l'autocomplétion");
+        // Fonction d'initialisation
+        const init = async () => {
+            console.log("✅ Google Maps chargé, initialisation de l'autocomplétion");
+            
+            // Charge la bibliothèque 'Places' et 'Core'
+            // 'Core' est nécessaire pour que les composants <gmp-place-autocomplete> fonctionnent
+            try {
+                await google.maps.importLibrary("core");
+                await google.maps.importLibrary("places");
+                
+                // Maintenant que la bibliothèque est chargée, les composants HTML sont actifs.
                 this.initAutocomplete();
-            } else {
-                console.log("⏳ Attente du chargement de Google Maps...");
-                setTimeout(checkGoogleMaps, 100);
+            } catch (error) {
+                console.error("❌ Erreur lors du chargement des bibliothèques Google Maps", error);
+                this.showError("Impossible de charger le service d'adresses.");
             }
         };
-        checkGoogleMaps();
+
+        // Si Google est déjà prêt (au cas où)
+        if (window.googleMapsReady) {
+            init();
+        } else {
+            // Sinon, on écoute l'événement que nous avons créé dans index.html
+            console.log("⏳ Attente du chargement de Google Maps...");
+            window.addEventListener('google-maps-ready', init, { once: true });
+        }
     }
     
     setDefaultDateTime() {
@@ -65,6 +81,8 @@ export class PlannerPanel {
     
     /**
      * ✅ MÉTHODE CORRIGÉE : initAutocomplete
+     * Cette méthode est maintenant appelée UNIQUEMENT après le chargement
+     * de la bibliothèque 'places'.
      */
     initAutocomplete() {
         if (!this.fromAutocompleteElement || !this.toAutocompleteElement) {
@@ -73,6 +91,7 @@ export class PlannerPanel {
         }
 
         // Écoute l'événement 'gmp-placechange' pour le champ DÉPART
+        // Cet événement n'existe que si la bibliothèque 'places' est chargée
         this.fromAutocompleteElement.addEventListener('gmp-placechange', async () => {
             const place = this.fromAutocompleteElement.place;
             
@@ -82,7 +101,10 @@ export class PlannerPanel {
             }
 
             try {
-                await place.fetchFields({ fields: ['name', 'geometry'] });
+                // S'assure que les champs de géométrie sont chargés si nécessaire
+                if (!place.geometry) {
+                    await place.fetchFields({ fields: ['name', 'geometry'] });
+                }
 
                 if (place.geometry && place.geometry.location) {
                     this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
@@ -106,7 +128,9 @@ export class PlannerPanel {
             }
 
             try {
-                await place.fetchFields({ fields: ['name', 'geometry'] });
+                if (!place.geometry) {
+                    await place.fetchFields({ fields: ['name', 'geometry'] });
+                }
                 
                 if (place.geometry && place.geometry.location) {
                     this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
@@ -151,6 +175,9 @@ export class PlannerPanel {
             const date = this.dateInput.value;
             const time = this.timeInput.value;
 
+            // C'est cette vérification qui posait problème
+            // Maintenant, fromCoords et toCoords seront bien remplis
+            // grâce à l'événement 'gmp-placechange'
             if (!from || !to) {
                 this.showError("Veuillez sélectionner un lieu de départ et d'arrivée valides dans les suggestions.");
                 return;
