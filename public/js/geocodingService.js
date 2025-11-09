@@ -5,7 +5,6 @@
  * Utilise l'API publique Nominatim d'OpenStreetMap pour éviter la nécessité de clés API.
  * @see https://nominatim.org/release-docs/latest/api/Search/
  */
-
 const NOMINATIM_ENDPOINT = 'https://nominatim.openstreetmap.org/search';
 
 /**
@@ -21,7 +20,7 @@ async function geocodeAddress(addressString) {
   url.searchParams.append('q', addressString);
   url.searchParams.append('format', 'json');
   url.searchParams.append('limit', '1');
-
+  
   try {
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -29,30 +28,28 @@ async function geocodeAddress(addressString) {
         'Accept': 'application/json'
       }
     });
-
+    
     if (!response.ok) {
       throw new Error(`Échec de l'API Nominatim: ${response.status} ${response.statusText}`);
     }
-
+    
     const results = await response.json();
-
+    
     // Vérifie si l'API a renvoyé un résultat
-    if (!results |
-
-| results.length === 0) {
+    if (!results || results.length === 0) {
       // Lève une erreur spécifique que main.js pourra attraper
       throw new Error(`Adresse non trouvée pour: "${addressString}"`);
     }
-
-    const firstResult = results;
+    
+    const firstResult = results[0];
     const coords = {
       lat: parseFloat(firstResult.lat),
       lon: parseFloat(firstResult.lon) // Nominatim utilise 'lon'
     };
-
+    
     console.log(`Géocodage réussi pour "${addressString}":`, coords);
     return coords;
-
+    
   } catch (error) {
     console.error(`Erreur lors du géocodage de "${addressString}":`, error);
     // Propage l'erreur pour que le `catch` de main.js puisse l'intercepter
