@@ -20,12 +20,18 @@
     
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 
-    <link rel="stylesheet" href="style.css?v=6">
-
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAU0OABc_T8AODV3UorpdYXsBVUFYMqMfQ&libraries=places" 
-        defer></script>            
-
-</head>
+    <link rel="stylesheet" href="style.css?v=7"> <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAU0OABc_T8AODV3UorpdYXsBVUFYMqMfQ&v=beta&libraries=places&callback=initMap"
+            defer
+    ></script>
+    <script>
+        // Cette fonction 'callback' est appelée par le script ci-dessus
+        function initMap() {
+            // On signale à l'application que Google est prêt
+            window.googleMapsReady = true;
+            window.dispatchEvent(new Event('google-maps-ready'));
+        }
+    </script>
+    </head>
 <body>
     
     <div id="app">
@@ -196,9 +202,10 @@
             </button>
         </div>
     </div>
-    <script type="module" src="js/routingService.js?v=6"></script>
-    <script type="module" src="js/plannerPanel.js?v=6"></script>
-    <script type="module" src="js/main.js?v=6"></script>
+
+    <script type="module" src="js/routingService.js?v=7"></script>
+    <script type="module" src="js/plannerPanel.js?v=7"></script>
+    <script type="module" src="js/main.js?v=7"></script>
 
 </body>
 </html>
