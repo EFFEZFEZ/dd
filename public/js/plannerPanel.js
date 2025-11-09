@@ -144,8 +144,9 @@ export class PlannerPanel {
         const duration = this.dataManager.formatDuration(durationInSeconds);
         
         // CORRECTION: Format d'heure ISO (string)
-        const departureText = new Date(leg.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-        const arrivalText = new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        // On vérifie si les heures existent (un trajet à pied n'en a pas)
+        const departureText = leg.departureTime ? new Date(leg.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+        const arrivalText = leg.arrivalTime ? new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
 
         this.summaryContainer.innerHTML = `
             <h4>Le plus rapide : ${duration}</h4>
@@ -173,12 +174,13 @@ export class PlannerPanel {
         const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
 
         let icon, details;
+        const instruction = step.navigationInstruction ? step.navigationInstruction.instructions : 'Marcher';
 
         if (step.travelMode === 'WALK') {
             icon = 'directions_walk';
             const distanceKm = (step.distanceMeters / 1000).toFixed(1);
             details = `
-                <strong>${step.navigationInstruction.instructions}</strong>
+                <strong>${instruction}</strong>
                 <div class="leg-time-info">${legDuration} (${distanceKm} km)</div>
             `;
         } else if (step.travelMode === 'TRANSIT') {
@@ -207,13 +209,13 @@ export class PlannerPanel {
                 `;
             } else {
                 details = `
-                    <strong>${step.navigationInstruction.instructions}</strong>
+                    <strong>${instruction}</strong>
                     <div class="leg-time-info">${legDuration}</div>
                 `;
             }
         } else {
             icon = 'help';
-            details = `<strong>${step.navigationInstruction ? step.navigationInstruction.instructions : 'Étape inconnue'}</strong>`;
+            details = `<strong>${instruction}</strong>`;
         }
 
         el.innerHTML = `
