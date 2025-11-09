@@ -4,6 +4,7 @@
  * MIS À JOUR :
  * 1. Lit le nouveau format de "Routes API" pour dessiner l'itinéraire.
  * 2. CORRECTION: Ajoute une vérification de sécurité pour 'step.transitDetails.line'
+ * 3. MODIFIÉ: `handleItineraryRequest` accepte un objet `options` complet.
  */
 
 import { DataManager } from './dataManager.js';
@@ -308,15 +309,16 @@ function exitPlannerMode() {
 
 /**
  * ===================================================================
- * FONCTION MODIFIÉE pour lire la nouvelle "Routes API"
+ * FONCTION MODIFIÉE pour accepter l'objet options
  * ===================================================================
  */
-async function handleItineraryRequest(fromPlace, toPlace) {
-    console.log(`Demande d'itinéraire de ${fromPlace} à ${toPlace}`);
+async function handleItineraryRequest(options) {
+    console.log(`Demande d'itinéraire de ${options.fromPlace} à ${options.toPlace}`);
     isPlannerMode = true;
     
     try {
-        const itineraryData = await routingService.getItinerary(fromPlace, toPlace);
+        // Passe l'objet options complet au service
+        const itineraryData = await routingService.getItinerary(options);
 
         if (itineraryData.error) {
             plannerPanel.showError(itineraryData.error);
