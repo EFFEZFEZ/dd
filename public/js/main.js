@@ -4,7 +4,6 @@
  * MIS À JOUR :
  * 1. Lit le nouveau format de "Routes API" pour dessiner l'itinéraire.
  * 2. CORRECTION: Ajoute une vérification de sécurité pour 'step.transitDetails.line'
- * qui peut être 'undefined' (cause de l'erreur 'reading color').
  */
 
 import { DataManager } from './dataManager.js';
@@ -336,7 +335,6 @@ async function handleItineraryRequest(fromPlace, toPlace) {
         const allCoords = []; 
 
         leg.steps.forEach(step => {
-            // Ajout d'une vérification de sécurité. Si l'étape est vide ou n'a pas de polyligne, on l'ignore.
             if (!step || !step.polyline || !step.polyline.encodedPolyline) {
                 console.warn("Étape d'itinéraire ignorée (manque polyligne):", step);
                 return;
@@ -347,7 +345,6 @@ async function handleItineraryRequest(fromPlace, toPlace) {
 
             let style = {};
 
-            // CORRECTION: 'travel_mode' -> 'travelMode'
             if (step.travelMode === 'WALK') {
                 style = {
                     color: '#6c757d', 
@@ -379,21 +376,19 @@ async function handleItineraryRequest(fromPlace, toPlace) {
         });
 
         // (Le reste de la fonction : marqueurs, zoom, affichage... reste identique)
-        // CORRECTION: 'start_location' -> 'startLocation.latLng.latitude' etc.
         const startPoint = [leg.startLocation.latLng.latitude, leg.startLocation.latLng.longitude];
         L.marker(startPoint, { 
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
         .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Départ:</b> ${leg.startAddress}`); // 'start_address' -> 'startAddress'
+        .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
 
-        // CORRECTION: 'end_location' -> 'endLocation.latLng.latitude' etc.
         const endPoint = [leg.endLocation.latLng.latitude, leg.endLocation.latLng.longitude];
          L.marker(endPoint, { 
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
         .addTo(mapRenderer.itineraryLayer)
-        .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`); // 'end_address' -> 'endAddress'
+        .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
 
         if (allCoords.length > 0) {
             const bounds = L.latLngBounds(allCoords);
@@ -403,7 +398,6 @@ async function handleItineraryRequest(fromPlace, toPlace) {
         plannerPanel.displayItinerary(itineraryData);
 
     } catch (error) {
-        // Gère les erreurs si 'getItinerary' lui-même plante
         console.error("Erreur lors de la recherche d'itinéraire:", error);
         plannerPanel.showError(error.message || "Erreur de connexion au service d'itinéraire.");
         isPlannerMode = false;
