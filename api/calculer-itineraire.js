@@ -1,14 +1,16 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * VERSION FINALE (FieldMask Corrigé v4)
- *
- * Le 'X-Goog-Field-Mask' est la clé. Celui-ci est
- * le seul qui demande les COULEURS et les NOMS de ligne.
- * Il active aussi les 3 trajets et "moins de marche".
+ * VERSION CORRIGÉE :
+ * 1. Transformé en un VRAI handler POST.
+ * 2. Vérifie la méthode 'POST' au début.
+ * 3. Lit les données (from, to, time) depuis le `request.json()` (le body)
+ * au lieu des `url.searchParams` (le GET).
+ * 4. La logique existante (createPlace, fetch Google) est conservée
+ * car elle était déjà correcte.
  */
 
-// Fonction pour vérifier si c'est des coordonnées
+// Fonction pour vérifier si c'est des coordonnées (inchangée)
 function isCoordinates(input) {
     if (typeof input !== 'string') return false; 
     const parts = input.split(',');
@@ -16,7 +18,7 @@ function isCoordinates(input) {
     return !isNaN(parts[0]) && !isNaN(parts[1]);
 }
 
-// Fonction pour créer l'objet "Place" pour la nouvelle API
+// Fonction pour créer l'objet "Place" (inchangée)
 function createPlace(input) {
     if (isCoordinates(input)) {
         const parts = input.split(',');
@@ -29,7 +31,6 @@ function createPlace(input) {
             }
         };
     }
-    // Si c'est du texte, on ajoute le contexte
     if (input && input.trim() !== '') {
         return {
             address: `${input}, Dordogne`
@@ -38,15 +39,23 @@ function createPlace(input) {
     return null;
 }
 
-// Handler Netlify (utilise 'request' seulement)
+// Handler Netlify (modifié pour POST)
 export default async function handler(request) {
+
+    // --- CORRECTION 1 : Accepter UNIQUEMENT POST ---
+    if (request.method !== 'POST') {
+        return new Response(JSON.stringify({ error: "Méthode non autorisée. Utilisez POST." }), {
+            status: 405, // Method Not Allowed
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
     
     try {
-        const url = new URL(request.url);
-        const from = url.searchParams.get('from');
-        const to = url.searchParams.get('to');
-        const departureTime = url.searchParams.get('departure_time');
-        const arrivalTime = url.searchParams.get('arrival_time');
+        // --- CORRECTION 2 : Lire le BODY JSON ---
+        const body = await request.json();
+        
+        // Extrait les variables du body (envoyées par routingService)
+        const { from, to, departure_time, arrival_time } = body;
 
         const apiKey = process.env.BACKEND_API_KEY;
 
@@ -64,6 +73,8 @@ export default async function handler(request) {
             });
         }
 
+        // Le reste de la logique est identique, car 'from' et 'to'
+        // sont maintenant les chaînes correctes lues depuis le body.
         const fromPlace = createPlace(from);
         const toPlace = createPlace(to);
 
@@ -81,31 +92,29 @@ export default async function handler(request) {
             destination: toPlace,
             travelMode: "TRANSIT",
             languageCode: "fr",
-            
-            // Demande 3 trajets
             computeAlternativeRoutes: true,
             transitPreferences: {
                 allowedTravelModes: ["BUS"],
-                // Demande moins de marche
                 routingPreference: "LESS_WALKING"
             }
         };
 
-        if (departureTime) {
-            requestBody.departureTime = departureTime;
-        } else if (arrivalTime) {
-            requestBody.arrivalTime = arrivalTime;
+        // --- CORRECTION 3 : Utiliser les variables de temps lues du BODY ---
+        if (departure_time) {
+            requestBody.departureTime = departure_time;
+        } else if (arrival_time) {
+            requestBody.arrivalTime = arrival_time;
         } else {
+            // Sécurité si aucune heure n'est fournie (main.js devrait le faire)
             requestBody.departureTime = new Date().toISOString();
         }
 
+        // Le fetch vers Google reste inchangé, il était correct
         const res = await fetch(apiUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': apiKey,
-                
-                // --- LE FIELD MASK CORRECT QUI DEMANDE LES COULEURS ---
                 'X-Goog-FieldMask': 'routes.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.startAddress,routes.legs.endAddress,routes.legs.startLocation.latLng,routes.legs.endLocation.latLng,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.transitDetails.headsign,routes.legs.steps.transitDetails.stopCount,routes.legs.steps.transitDetails.line.shortName,routes.legs.steps.transitDetails.line.color,routes.legs.steps.transitDetails.line.textColor,routes.legs.steps.transitDetails.stopDetails.departureStop.name,routes.legs.steps.transitDetails.stopDetails.arrivalStop.name'
             },
             body: JSON.stringify(requestBody)
@@ -113,6 +122,7 @@ export default async function handler(request) {
 
         const data = await res.json();
 
+        // La gestion des erreurs Google reste inchangée
         if (data.error) {
              console.error("Erreur API Routes (après fetch):", data.error);
              return new Response(JSON.stringify({ error: data.error.message, status: data.error.status }), {
@@ -137,6 +147,7 @@ export default async function handler(request) {
         });
 
     } catch (error) {
+        // Gère les erreurs de parsing JSON ou autres crashs
         console.error("Erreur interne (crash) dans la fonction API:", error);
         return new Response(JSON.stringify({ error: 'Erreur serveur interne. Vérifiez les logs Netlify.' }), {
             status: 500,
