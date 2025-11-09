@@ -125,7 +125,7 @@
                 <gmp-place-autocomplete 
                     id="planner-from-autocomplete"
                     location-bias="CIRCLE:30000@45.1833,0.7167" 
-                    component-restrictions="country:fr"
+                    component-restrictions='{"country": "fr"}'
                 >
                     <input type="text" id="planner-from" placeholder="Ex: Mairie de Marsac" autocomplete="off">
                 </gmp-place-autocomplete>
@@ -138,7 +138,7 @@
                 <gmp-place-autocomplete 
                     id="planner-to-autocomplete"
                     location-bias="CIRCLE:30000@45.1833,0.7167"
-                    component-restrictions="country:fr"
+                    component-restrictions='{"country": "fr"}'
                 >
                     <input type="text" id="planner-to" placeholder="Ex: Campus Périgord" autocomplete="off">
                 </gmp-place-autocomplete>
