@@ -79,7 +79,6 @@ export class PlannerPanel {
 
         // Écoute l'événement 'gmp-placechange' (le NOUVEL événement)
         this.fromAutocompleteElement.addEventListener('gmp-placechange', async (event) => {
-            // 'place' est une promesse
             const place = this.fromAutocompleteElement.place;
             
             if (!place) {
@@ -106,7 +105,6 @@ export class PlannerPanel {
                 return;
             }
 
-            // CORRECTION : On doit demander les champs ('fetchFields')
             await place.fetchFields({ fields: ['name', 'geometry'] });
              
              if (place.geometry) {
@@ -117,7 +115,6 @@ export class PlannerPanel {
             }
         });
 
-        // Si l'utilisateur efface le texte, on efface les coordonnées
         this.fromInput.addEventListener('input', () => {
             if (this.fromInput.value === '') this.fromCoords = null;
         });
@@ -169,7 +166,6 @@ export class PlannerPanel {
             
             this.showLoading("Calcul de l'itinéraire...");
             
-            // Appelle 'handleItineraryRequest' dans main.js
             this.searchCallback(options); 
         });
 
@@ -301,7 +297,6 @@ export class PlannerPanel {
         });
     }
 
-// (Le reste de la classe, 'createLegStep' et 'getContrastColor', est identique à votre version)
     createLegStep(step) {
         const instruction = (step.navigationInstruction ? step.navigationInstruction.instructions : null) || 
                             (step.travelMode === 'WALK' ? 'Marcher' : 'Continuer');
