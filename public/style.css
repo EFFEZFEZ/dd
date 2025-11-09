@@ -607,3 +607,69 @@ gmp-place-autocomplete input:focus {
     /* Cache le logo "Powered by Google" */
     display: none;
 }
+/* ... (Tout votre CSS existant) ... */
+
+/* =========================================
+ * STYLES GOOGLE (AJOUTS/CORRECTIONS)
+ * ========================================= */
+ 
+/* Règle manquante pour masquer les éléments */
+.hidden {
+    display: none !important;
+}
+
+/* Force les nouveaux champs Google à s'afficher correctement */
+gmp-place-autocomplete {
+    display: block; /* S'assure qu'il prend toute la largeur */
+}
+
+/* Style l'input *à l'intérieur* du composant Google */
+gmp-place-autocomplete input {
+    /* Applique votre style d'input existant */
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    font-family: inherit;
+    /* CORRECTION pour les champs noirs (force fond blanc) */
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+}
+gmp-place-autocomplete input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+    outline: none;
+}
+
+/* Style la *liste* des suggestions */
+.pac-container {
+    background-color: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    z-index: 9999 !important; /* Doit être au-dessus de tout */
+    margin-top: 4px;
+}
+.pac-item {
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    border: none;
+}
+.pac-item:hover {
+    background-color: var(--bg-secondary);
+}
+.pac-item-query {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.pac-icon {
+    display: none; /* Cache l'icône de lieu moche */
+}
+.pac-logo:after {
+    /* Cache le logo "Powered by Google" */
+    display: none;
+}
