@@ -1,22 +1,17 @@
 /**
  * Fichier : /js/plannerPanel.js
  *
- * Gère le panneau latéral et affiche les résultats
- * de l'API Google Directions.
- *
- * CORRECTIONS :
- * 1. Suggestions (Autocomplete) limitées STRICTEMENT à la zone.
- * 2. Garde le nom du lieu dans le champ après sélection
- * (ne remplace plus par des coordonnées).
+ * MIS À JOUR :
+ * 1. Utilise la nouvelle API "Place Autocomplete Element" de Google.
+ * 2. Lit le nouveau format de réponse de "Routes API".
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
         this.panel = document.getElementById(panelId);
         this.dataManager = dataManager;
         this.mapRenderer = mapRenderer;
-        this.searchCallback = searchCallback; // La fonction de main.js
+        this.searchCallback = searchCallback; 
 
-        // Éléments...
         this.fromInput = document.getElementById('planner-from');
         this.toInput = document.getElementById('planner-to');
         this.searchButton = document.getElementById('btn-search-itinerary');
@@ -25,7 +20,6 @@ export class PlannerPanel {
         this.summaryContainer = document.getElementById('itinerary-summary');
         this.stepsContainer = document.getElementById('itinerary-steps');
 
-        // Stocke les coordonnées si une suggestion est cliquée
         this.fromCoords = null;
         this.toCoords = null;
 
@@ -41,11 +35,15 @@ export class PlannerPanel {
         }
     }
     
-    initAutocomplete() {
+    // --- CORRECTION AUTOCOMPLÉTION (Google Places API) ---
+    async initAutocomplete() {
         if (typeof google === 'undefined' || !google.maps.places) {
             console.warn("Google Places API n'est pas chargée. Les suggestions ne fonctionneront pas.");
             return;
         }
+
+        // On utilise la nouvelle bibliothèque "places"
+        const { Autocomplete } = await google.maps.importLibrary("places");
 
         const center = { lat: 45.1833, lng: 0.7167 }; // Périgueux
         const defaultBounds = {
@@ -58,22 +56,18 @@ export class PlannerPanel {
         const options = {
             bounds: defaultBounds,
             componentRestrictions: { country: "fr" },
-            // --- CORRECTION "UNIQUEMENT DORDOGNE" ---
             strictBounds: true, // Force les résultats à être dans cette zone
             fields: ["name", "formatted_address", "geometry"],
         };
         
-        const fromAutocomplete = new google.maps.places.Autocomplete(this.fromInput, options);
-        const toAutocomplete = new google.maps.places.Autocomplete(this.toInput, options);
+        const fromAutocomplete = new Autocomplete(this.fromInput, options);
+        const toAutocomplete = new Autocomplete(this.toInput, options);
 
-        // --- CORRECTION "GARDER LES NOMS" ---
         fromAutocomplete.addListener('place_changed', () => {
             const place = fromAutocomplete.getPlace();
             if (place.geometry) {
                 const loc = place.geometry.location;
-                // On stocke les coordonnées pour la recherche
                 this.fromCoords = `${loc.lat()},${loc.lng()}`;
-                // Mais on affiche le nom dans le champ
                 this.fromInput.value = place.name;
             }
         });
@@ -87,23 +81,18 @@ export class PlannerPanel {
             }
         });
 
-        // Si l'utilisateur tape sans choisir, on efface les coordonnées stockées
         this.fromInput.addEventListener('input', () => { this.fromCoords = null; });
         this.toInput.addEventListener('input', () => { this.toCoords = null; });
     }
 
     bindEvents() {
         this.searchButton.addEventListener('click', () => {
-            // S'il y a des coordonnées stockées (clic sur suggestion), on les utilise
-            // Sinon, on utilise le texte tapé (ex: "marsac")
             const from = this.fromCoords || this.fromInput.value;
             const to = this.toCoords || this.toInput.value;
-
             if (from && to) {
                 this.showLoading();
-                this.searchCallback(from, to); // Appelle main.js
+                this.searchCallback(from, to); 
             }
-            // Réinitialiser après la recherche
             this.fromCoords = null;
             this.toCoords = null;
         });
@@ -112,8 +101,8 @@ export class PlannerPanel {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
                 .on('locationfound', (e) => {
                     const coords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`;
-                    this.fromInput.value = "Ma position"; // Affiche "Ma position"
-                    this.fromCoords = coords; // Stocke les coordonnées
+                    this.fromInput.value = "Ma position"; 
+                    this.fromCoords = coords; 
                 })
                 .on('locationerror', (e) => {
                     alert("Impossible de vous localiser.");
@@ -137,7 +126,7 @@ export class PlannerPanel {
     }
 
     /**
-     * Affiche l'itinéraire (réponse Google) dans le panneau
+     * Affiche l'itinéraire (format "Routes API")
      */
     displayItinerary(itineraryData) {
         this.hideLoading();
@@ -148,12 +137,17 @@ export class PlannerPanel {
             return;
         }
 
-        const route = itineraryData.routes[0];
+        const route = itineraryData.routes[0]; 
         const leg = route.legs[0]; 
 
-        const duration = this.dataManager.formatDuration(leg.duration.value);
-        const departureText = leg.departure_time?.text;
-        const arrivalText = leg.arrival_time?.text;
+        // 1. Résumé
+        // CORRECTION: 'leg.duration.value' -> 'route.duration' (string "3600s")
+        const durationInSeconds = parseInt(route.duration.slice(0, -1)); // Enlève le "s"
+        const duration = this.dataManager.formatDuration(durationInSeconds);
+        
+        // CORRECTION: Format d'heure ISO (string)
+        const departureText = new Date(leg.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const arrivalText = new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 
         this.summaryContainer.innerHTML = `
             <h4>Le plus rapide : ${duration}</h4>
@@ -163,54 +157,63 @@ export class PlannerPanel {
             }
         `;
 
+        // 2. Étapes (Steps)
         leg.steps.forEach(step => {
-            this.stepsContainer.appendChild(this.createLegStep(step));
+            if (step) {
+                this.stepsContainer.appendChild(this.createLegStep(step));
+            }
         });
     }
 
-    /** Crée une étape de trajet (Marche ou Bus) */
+    /** Crée une étape de trajet (format "Routes API") */
     createLegStep(step) {
         const el = document.createElement('div');
+        // CORRECTION: 'travel_mode' -> 'travelMode'
         el.className = 'itinerary-leg';
-        el.dataset.mode = step.travel_mode;
+        el.dataset.mode = step.travelMode;
 
-        const legDuration = step.duration.text;
-        const startTime = step.departure_time?.text || '';
+        // CORRECTION: 'step.duration.text' -> 'step.staticDuration' (string "360s")
+        const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1)));
+        const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
 
         let icon, details;
 
-        if (step.travel_mode === 'WALKING') {
+        // CORRECTION: 'WALKING' -> 'WALK'
+        if (step.travelMode === 'WALK') {
             icon = 'directions_walk';
+            // CORRECTION: 'html_instructions' -> 'instruction' (texte simple)
+            // CORRECTION: 'distance.text' -> 'distanceMeters' (nombre)
+            const distanceKm = (step.distanceMeters / 1000).toFixed(1);
             details = `
-                <strong>${step.html_instructions}</strong>
-                <div class="leg-time-info">${legDuration} (${step.distance.text})</div>
+                <strong>${step.instruction}</strong>
+                <div class="leg-time-info">${legDuration} (${distanceKm} km)</div>
             `;
-        } else if (step.travel_mode === 'TRANSIT') {
+        } else if (step.travelMode === 'TRANSIT') {
             icon = 'directions_bus';
-            const transit = step.transit_details;
+            // CORRECTION: 'transit_details' -> 'transitDetails'
+            const transit = step.transitDetails;
             const line = transit.line;
-            // Utilise la couleur du badge fournie par l'API
             const routeColor = line.color || '#333';
-            const textColor = line.text_color || this.getContrastColor(routeColor);
+            const textColor = line.textColor || this.getContrastColor(routeColor);
 
             details = `
-                <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.departure_stop.name}</strong></div>
+                <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.stopDetails.departureStop.name}</strong></div>
                 <div class="leg-route">
                     <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
-                        ${line.short_name || line.name}
+                        ${line.shortName || line.name}
                     </span>
                     <strong>Direction ${transit.headsign}</strong>
                 </div>
                 <div class="leg-time-info">
-                    ${transit.num_stops} arrêt(s) (${legDuration})
+                    ${transit.stopCount} arrêt(s) (${legDuration})
                 </div>
                 <div class="leg-time-info" style="margin-top: 5px;">
-                    Descendre à <strong>${transit.arrival_stop.name}</strong>
+                    Descendre à <strong>${transit.stopDetails.arrivalStop.name}</strong>
                 </div>
             `;
         } else {
             icon = 'help';
-            details = `<strong>${step.html_instructions}</strong>`;
+            details = `<strong>${step.instruction || 'Étape inconnue'}</strong>`;
         }
 
         el.innerHTML = `
