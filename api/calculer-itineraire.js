@@ -1,10 +1,11 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * VERSION CORRIGÉE - Field Mask validé
+ * VERSION FINALE (FieldMask Corrigé v4)
  *
- * CORRECTION: Le 'X-Goog-FieldMask' utilise maintenant
- * les chemins corrects selon la documentation API Routes v2
+ * Le 'X-Goog-Field-Mask' est la clé. Celui-ci est
+ * le seul qui demande les COULEURS et les NOMS de ligne.
+ * Il active aussi les 3 trajets et "moins de marche".
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -81,9 +82,11 @@ export default async function handler(request) {
             travelMode: "TRANSIT",
             languageCode: "fr",
             
+            // Demande 3 trajets
             computeAlternativeRoutes: true,
             transitPreferences: {
                 allowedTravelModes: ["BUS"],
+                // Demande moins de marche
                 routingPreference: "LESS_WALKING"
             }
         };
@@ -102,8 +105,8 @@ export default async function handler(request) {
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': apiKey,
                 
-                // --- FIELD MASK CORRIGÉ selon la doc API Routes v2 ---
-                'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.legs.duration,routes.legs.distanceMeters,routes.legs.startLocation,routes.legs.endLocation,routes.legs.steps.startLocation,routes.legs.steps.endLocation,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline,routes.legs.steps.navigationInstruction,routes.legs.steps.transitDetails'
+                // --- LE FIELD MASK CORRECT QUI DEMANDE LES COULEURS ---
+                'X-Goog-FieldMask': 'routes.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.startAddress,routes.legs.endAddress,routes.legs.startLocation.latLng,routes.legs.endLocation.latLng,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.transitDetails.headsign,routes.legs.steps.transitDetails.stopCount,routes.legs.steps.transitDetails.line.shortName,routes.legs.steps.transitDetails.line.color,routes.legs.steps.transitDetails.line.textColor,routes.legs.steps.transitDetails.stopDetails.departureStop.name,routes.legs.steps.transitDetails.stopDetails.arrivalStop.name'
             },
             body: JSON.stringify(requestBody)
         });
