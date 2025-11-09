@@ -3,7 +3,7 @@
  *
  * MIS À JOUR :
  * 1. Utilise la nouvelle API "Place Autocomplete" de Google.
- * 2. Lit le nouveau format de réponse de "Routes API".
+ * 2. Lit le nouveau format de réponse de "Routes API" (corrige "Invalid Date").
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -35,14 +35,12 @@ export class PlannerPanel {
         }
     }
     
-    // --- CORRECTION AUTOCOMPLÉTION (Google Places API) ---
     async initAutocomplete() {
         if (typeof google === 'undefined' || !google.maps.places) {
             console.warn("Google Places API n'est pas chargée. Les suggestions ne fonctionneront pas.");
             return;
         }
 
-        // On utilise la nouvelle bibliothèque "places"
         const { Autocomplete } = await google.maps.importLibrary("places");
 
         const center = { lat: 45.1833, lng: 0.7167 }; // Périgueux
@@ -56,7 +54,7 @@ export class PlannerPanel {
         const options = {
             bounds: defaultBounds,
             componentRestrictions: { country: "fr" },
-            strictBounds: true, // Force les résultats à être dans cette zone
+            strictBounds: true, 
             fields: ["name", "formatted_address", "geometry"],
         };
         
@@ -168,33 +166,25 @@ export class PlannerPanel {
     /** Crée une étape de trajet (format "Routes API") */
     createLegStep(step) {
         const el = document.createElement('div');
-        // CORRECTION: 'travel_mode' -> 'travelMode'
         el.className = 'itinerary-leg';
         el.dataset.mode = step.travelMode;
 
-        // CORRECTION: 'step.duration.text' -> 'step.staticDuration' (string "360s")
         const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1)));
         const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
 
         let icon, details;
 
-        // CORRECTION: 'WALKING' -> 'WALK'
         if (step.travelMode === 'WALK') {
             icon = 'directions_walk';
-            // CORRECTION: 'html_instructions' -> 'instruction' (texte simple)
-            // CORRECTION: 'distance.text' -> 'distanceMeters' (nombre)
             const distanceKm = (step.distanceMeters / 1000).toFixed(1);
             details = `
-                <strong>${step.instruction}</strong>
+                <strong>${step.navigationInstruction.instructions}</strong>
                 <div class="leg-time-info">${legDuration} (${distanceKm} km)</div>
             `;
         } else if (step.travelMode === 'TRANSIT') {
             icon = 'directions_bus';
-            // CORRECTION: 'transit_details' -> 'transitDetails'
             const transit = step.transitDetails;
             
-            // --- CORRECTION ERREUR "undefined" ---
-            // On vérifie si 'line' existe. Si non, c'est "undefined"
             if (transit && transit.line) {
                 const line = transit.line;
                 const routeColor = line.color || '#333';
@@ -216,15 +206,14 @@ export class PlannerPanel {
                     </div>
                 `;
             } else {
-                // Cas où 'line' est undefined (le bug "undefined")
                 details = `
-                    <strong>${step.instruction}</strong>
+                    <strong>${step.navigationInstruction.instructions}</strong>
                     <div class="leg-time-info">${legDuration}</div>
                 `;
             }
         } else {
             icon = 'help';
-            details = `<strong>${step.instruction || 'Étape inconnue'}</strong>`;
+            details = `<strong>${step.navigationInstruction ? step.navigationInstruction.instructions : 'Étape inconnue'}</strong>`;
         }
 
         el.innerHTML = `
