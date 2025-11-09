@@ -184,8 +184,6 @@ export class PlannerPanel {
                 .on('locationerror', (e) => alert("Impossible de vous localiser."));
         });
     }
-
-    // (Le reste du fichier est identique à votre 'plannerPanel.js' précédent)
     
     showLoading(message = "Recherche en cours...") {
         this.loadingSpinner.querySelector('p').textContent = message;
