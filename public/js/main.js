@@ -49,7 +49,7 @@ class PlannerPanel {
         this.timeMode = 'DEPARTURE';
         this.fromCoords = null; // Coordonnées (si sélectionnées par Autocomplete)
         this.toCoords = null;   // Coordonnées (si sélectionnées par Autocomplete)
-        this.currentRoutes =;
+        this.currentRoutes = [];
 
         // Initialisation
         this.setDefaultDateTime();
