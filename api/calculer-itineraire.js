@@ -4,8 +4,8 @@
  * VERSION FINALE (NETLIFY + API ROUTES)
  *
  * Utilise la nouvelle API Routes et "TransitPreferences"
- * pour forcer UNIQUEMENT les trajets en bus ("BUS")
- * et exclure les trains ("RAIL", "TER").
+ * pour forcer UNIQUEMENT les trajets en bus ("BUS").
+ * Supprime le FieldMask qui causait l'erreur "invalid argument".
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -30,11 +30,15 @@ function createPlace(input) {
         };
     }
     // Si c'est du texte, on ajoute le contexte
-    return {
-        address: `${input}, Dordogne`
-    };
+    if (input && input.trim() !== '') {
+        return {
+            address: `${input}, Dordogne`
+        };
+    }
+    return null;
 }
 
+// Handler Netlify (utilise 'request' seulement)
 export default async function handler(request) {
     
     try {
@@ -61,10 +65,14 @@ export default async function handler(request) {
         const fromPlace = createPlace(from);
         const toPlace = createPlace(to);
 
-        const now = new Date();
+        if (!fromPlace || !toPlace) {
+             return new Response(JSON.stringify({ error: "Adresses de départ ou d'arrivée invalides." }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
 
-        // --- C'EST ICI QU'ON UTILISE LA NOUVELLE API ---
-        
+        const now = new Date();
         const apiUrl = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
         const requestBody = {
@@ -73,9 +81,8 @@ export default async function handler(request) {
             travelMode: "TRANSIT",
             departureTime: now.toISOString(),
             languageCode: "fr",
-            // On force le calcul à n'utiliser QUE le bus
             transitPreferences: {
-                allowedTravelModes: ["BUS"] // Exclut "TRAIN", "RAIL", etc.
+                allowedTravelModes: ["BUS"] // Force les bus, exclut les trains
             }
         };
 
@@ -84,28 +91,25 @@ export default async function handler(request) {
             headers: {
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': apiKey,
-                // Masque de champ pour ne récupérer que ce dont on a besoin
-                'X-Goog-FieldMask': 'routes.legs.steps,routes.legs.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.startAddress,routes.legs.endAddress'
+                // On demande juste les routes, sans masque de champ compliqué
+                'X-Goog-FieldMask': 'routes'
             },
             body: JSON.stringify(requestBody)
         });
 
         const data = await res.json();
 
-        // L'API Routes renvoie un objet vide ou une erreur si aucun trajet n'est trouvé
         if (!data.routes || data.routes.length === 0) {
             console.error("Erreur API Routes:", data.error || "Aucun trajet trouvé");
-            
             let errorMsg = "Aucun itinéraire en bus trouvé.";
             if (data.error) errorMsg = data.error.message;
-
+            
             return new Response(JSON.stringify({ error: errorMsg, status: 'ZERO_RESULTS' }), {
-                status: 500, // On renvoie 500 mais avec un message clair
+                status: 404, // "Non trouvé" est plus clair
                 headers: { 'Content-Type': 'application/json' }
             });
         }
 
-        // Succès : on retourne la réponse
         return new Response(JSON.stringify(data), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
