@@ -1,11 +1,10 @@
 /**
  * Fichier : /js/plannerPanel.js
  *
- * MIS À JOUR MAJEURE :
- * 1. Gère l'affichage de plusieurs itinéraires (routes) sous forme d'onglets.
- * 2. `createLegStep` affiche désormais les horaires de départ/arrivée
- * et applique la COULEUR de la ligne à l'icône du bus.
- * 3. Robuste face aux trajets sans détails de ligne.
+ * MIS À JOUR MAJEURE V2 :
+ * 1. AJOUT: Logique `groupSteps` pour fusionner les étapes de marche consécutives.
+ * 2. CORRECTION: `createLegStep` filtre les instructions "undefined" ou vides.
+ * 3. Le support des 3 trajets (onglets) est CONSERVÉ.
  */
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
@@ -20,7 +19,6 @@ export class PlannerPanel {
         this.locateButton = document.getElementById('btn-use-location');
         this.loadingSpinner = document.getElementById('planner-loading');
 
-        // NOUVEAU: Conteneurs pour les résultats multiples
         this.summaryContainer = document.getElementById('itinerary-summary-container');
         this.stepsContainer = document.getElementById('itinerary-steps-container');
 
@@ -32,7 +30,7 @@ export class PlannerPanel {
 
         this.fromCoords = null;
         this.toCoords = null;
-        this.currentRoutes = []; // Stocke les données des trajets
+        this.currentRoutes = []; 
 
         this.setDefaultDateTime();
         this.bindEvents();
@@ -153,6 +151,52 @@ export class PlannerPanel {
     }
 
     /**
+     * NOUVEAU: Regroupe les étapes de marche
+     */
+    groupSteps(steps) {
+        const groupedSteps = [];
+        let currentWalkStep = null;
+
+        for (const step of steps) {
+            if (step.travelMode === 'WALK') {
+                if (!currentWalkStep) {
+                    // C'est la première étape de marche d'un bloc
+                    currentWalkStep = {
+                        ...step,
+                        // Garde la première instruction
+                        navigationInstruction: step.navigationInstruction || { instructions: "Marcher" },
+                        // Réinitialise la durée et la distance
+                        distanceMeters: 0,
+                        staticDuration: "0s"
+                    };
+                }
+                // Ajoute la distance et la durée
+                currentWalkStep.distanceMeters += step.distanceMeters || 0;
+                currentWalkStep.staticDuration = (
+                    parseInt(currentWalkStep.staticDuration.slice(0, -1)) + 
+                    parseInt(step.staticDuration.slice(0, -1))
+                ) + "s";
+            } else {
+                // C'est une étape de TRANSIT ou autre
+                if (currentWalkStep) {
+                    // D'abord, pousse le bloc de marche accumulé
+                    groupedSteps.push(currentWalkStep);
+                    currentWalkStep = null;
+                }
+                // Ensuite, pousse l'étape de transit
+                groupedSteps.push(step);
+            }
+        }
+
+        // S'il reste un bloc de marche à la fin
+        if (currentWalkStep) {
+            groupedSteps.push(currentWalkStep);
+        }
+
+        return groupedSteps;
+    }
+
+    /**
      * Affiche les itinéraires (format "Routes API") sous forme d'onglets
      */
     displayItinerary(itineraryData) {
@@ -177,7 +221,9 @@ export class PlannerPanel {
 
             // Crée les icônes de mode (Bus, Marche)
             let modesHtml = '';
-            leg.steps.forEach(step => {
+            // ** Utilise les étapes regroupées pour les icônes **
+            const groupedSteps = this.groupSteps(leg.steps);
+            groupedSteps.forEach(step => {
                 const icon = step.travelMode === 'WALK' ? 'directions_walk' : 'directions_bus';
                 modesHtml += `<span class="material-icons">${icon}</span>`;
             });
@@ -202,9 +248,11 @@ export class PlannerPanel {
             stepsContent.className = 'itinerary-steps-content';
             stepsContent.id = `steps-content-${index}`;
             
-            leg.steps.forEach(step => {
-                if (step) {
-                    stepsContent.appendChild(this.createLegStep(step));
+            // ** Crée les éléments d'étape à partir des étapes regroupées **
+            groupedSteps.forEach(step => {
+                const stepElement = this.createLegStep(step);
+                if (stepElement) { // createLegStep peut retourner null (pour 'undefined')
+                    stepsContent.appendChild(stepElement);
                 }
             });
             this.stepsContainer.appendChild(stepsContent);
@@ -218,38 +266,43 @@ export class PlannerPanel {
      * Active un onglet d'itinéraire spécifique
      */
     activateRouteTab(index) {
-        // Gère les onglets de résumé
         this.summaryContainer.querySelectorAll('.itinerary-summary-tab').forEach((tab, i) => {
             tab.classList.toggle('active', i === index);
         });
         
-        // Gère les conteneurs d'étapes
         this.stepsContainer.querySelectorAll('.itinerary-steps-content').forEach((content, i) => {
             content.classList.toggle('active', i === index);
         });
-
-        // (Ici, vous pourriez aussi redessiner la polyligne sur la carte si vous le souhaitez)
     }
-
 
     /** Crée une étape de trajet (format "Routes API") avec tous les détails */
     createLegStep(step) {
+        // ** CORRECTION "undefined" : S'assure qu'il y a une instruction **
+        const instruction = (step.navigationInstruction ? step.navigationInstruction.instructions : null) || 
+                            (step.travelMode === 'WALK' ? 'Marcher' : 'Continuer');
+
+        // ** Ne pas afficher les étapes "undefined" ou vides **
+        if (!instruction || instruction === 'undefined') {
+            return null; // Retourne null pour ne pas créer d'élément
+        }
+        
         const el = document.createElement('div');
         el.className = 'itinerary-leg';
         el.dataset.mode = step.travelMode;
 
         const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1)));
         
-        // Formate les heures
         const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
         const endTime = step.arrivalTime ? new Date(step.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
 
         let icon, details, iconStyle = '';
-        const instruction = step.navigationInstruction ? step.navigationInstruction.instructions : 'Marcher';
 
         if (step.travelMode === 'WALK') {
             icon = 'directions_walk';
+            iconStyle = `style="background-color: #f0f0f0;"`; // Gris marche
             const distanceKm = (step.distanceMeters / 1000).toFixed(1);
+            
+            // Affiche l'instruction de marche (ex: "Marcher vers Arrêt X" ou "Marcher 21 min")
             details = `
                 <strong>${instruction}</strong>
                 <div class="leg-time-info">${legDuration} (${distanceKm} km)</div>
@@ -259,13 +312,12 @@ export class PlannerPanel {
             icon = 'directions_bus';
             const transit = step.transitDetails;
             
-            // Si on a les détails de la ligne (cas normal)
+            // Cas 1: L'API a renvoyé les détails (le cas idéal)
             if (transit && transit.line) {
                 const line = transit.line;
-                const routeColor = line.color || '#3388ff'; // Bleu par défaut
+                const routeColor = line.color || '#3388ff';
                 const textColor = line.textColor || this.getContrastColor(routeColor);
                 
-                // Applique la couleur de la ligne à l'icône !
                 iconStyle = `style="background-color: ${routeColor}; color: ${textColor};"`;
 
                 details = `
@@ -288,7 +340,7 @@ export class PlannerPanel {
                     </div>
                 `;
             } 
-            // Fallback (comme dans votre screenshot) si l'API ne renvoie pas les détails de ligne
+            // Cas 2: L'API n'a PAS renvoyé les détails (votre cas actuel)
             else {
                 iconStyle = `style="background-color: #6c757d;"`; // Gris
                 details = `
