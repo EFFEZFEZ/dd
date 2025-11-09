@@ -130,13 +130,20 @@
                 <input type="text" id="planner-to" placeholder="Ex: Campus Périgord" autocomplete="off">
             </div>
             
-            <div class="planner-time-options">
-                <select id="planner-time-mode">
-                    <option value="DEPARTURE">Partir à</option>
-                    <option value="ARRIVAL">Arriver à</option>
-                </select>
-                <input type="date" id="planner-date">
-                <input type="time" id="planner-time">
+            <div class="planner-tabs">
+                <button id="planner-mode-departure" class="planner-tab-btn active" data-mode="DEPARTURE">Partir</button>
+                <button id="planner-mode-arrival" class="planner-tab-btn" data-mode="ARRIVAL">Arriver</button>
+            </div>
+            
+            <div class="planner-datetime-inputs">
+                <div class="input-group">
+                    <label for="planner-date">Date du trajet</label>
+                    <input type="date" id="planner-date">
+                </div>
+                <div class="input-group">
+                    <label for="planner-time">Heure</label>
+                    <input type="time" id="planner-time">
+                </div>
             </div>
             <button id="btn-search-itinerary" class="btn btn-primary" style="width: 100%; margin-top: 10px; padding: 0.75rem;">
                 Rechercher
