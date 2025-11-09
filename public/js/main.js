@@ -1,27 +1,35 @@
 /**
  * main.js
  *
- * MIS À JOUR :
- * 1. Lit le nouveau format de "Routes API" pour dessiner l'itinéraire.
- * 2. CORRECTION: Ajoute une vérification de sécurité pour 'step.transitDetails.line'
- * 3. MODIFIÉ: `handleItineraryRequest` accepte un objet `options` complet.
+ * Fichier principal de l'application.
+ *
+ * CORRECTIONS APPLIQUÉES :
+ * 1. Importe { RoutingService } comme un objet (et non une classe).
+ * 2. Importe { PlannerPanel } depuis './plannerPanel.js'.
+ * 3. Supprime 'new' lors de l'assignation de 'routingService' (ligne 59).
+ * 4. 'handleItineraryRequest' est mis à jour pour correspondre à la fois
+ * à ce que 'plannerPanel.js' envoie et ce que 'routingService.js' attend.
  */
 
+// Imports des modules de logique
 import { DataManager } from './dataManager.js';
 import { TimeManager } from './timeManager.js';
 import { TripScheduler } from './tripScheduler.js';
 import { BusPositionCalculator } from './busPositionCalculator.js';
 import { MapRenderer } from './mapRenderer.js';
-import { RoutingService } from './routingService.js';
-import { PlannerPanel } from './plannerPanel.js';
 
+// Imports des modules UI et Services
+import { RoutingService } from './routingService.js';
+import { PlannerPanel } from './plannerPanel.js'; // Assurez-vous que cet import est correct
+
+// Variables globales de l'application
 let dataManager;
 let timeManager;
 let tripScheduler;
 let busPositionCalculator;
 let mapRenderer;
 let visibleRoutes = new Set();
-let routingService;
+let routingService; // Sera un objet, pas une instance
 let plannerPanel;
 let isPlannerMode = false;
 
@@ -56,12 +64,17 @@ async function initializeApp() {
         tripScheduler = new TripScheduler(dataManager);
         busPositionCalculator = new BusPositionCalculator(dataManager);
         
-        routingService = new RoutingService();
+        // --- CORRECTION ---
+        // On n'utilise PAS 'new'. On assigne directement l'objet importé.
+        routingService = RoutingService; 
+        // --- FIN CORRECTION ---
+
+        // Initialise le panneau de planification
         plannerPanel = new PlannerPanel(
             'planner-panel', 
             dataManager, 
             mapRenderer, 
-            handleItineraryRequest 
+            handleItineraryRequest // Fonction 'callback'
         );
 
         initializeRouteFilter();
@@ -309,16 +322,28 @@ function exitPlannerMode() {
 
 /**
  * ===================================================================
- * FONCTION MODIFIÉE pour accepter l'objet options
+ * FONCTION CALLBACK pour le PlannerPanel
  * ===================================================================
  */
 async function handleItineraryRequest(options) {
-    console.log(`Demande d'itinéraire de ${options.fromPlace} à ${options.toPlace}`);
+    // options contient { fromPlace, toPlace, timeMode, dateTime }
+    // envoyé par plannerPanel.js
+    
+    // MAIS, routingService.js attend { fromCoords, toCoords, ... }
+    // Nous adaptons l'objet.
+    const serviceOptions = {
+        fromCoords: options.fromCoords, // Utilise les coords
+        toCoords: options.toCoords,     // Utilise les coords
+        isoDateTime: options.dateTime,
+        timeMode: options.timeMode
+    };
+
+    console.log(`Demande d'itinéraire...`);
     isPlannerMode = true;
     
     try {
-        // Passe l'objet options complet au service
-        const itineraryData = await routingService.getItinerary(options);
+        // Passe l'objet 'serviceOptions' adapté au service
+        const itineraryData = await routingService.getItinerary(serviceOptions);
 
         if (itineraryData.error) {
             plannerPanel.showError(itineraryData.error);
@@ -342,6 +367,7 @@ async function handleItineraryRequest(options) {
                 return;
             }
 
+            // Utilise la fonction de décodage de notre service
             const stepCoords = routingService.decodePolyline(step.polyline.encodedPolyline);
             allCoords.push(...stepCoords);
 
@@ -370,7 +396,6 @@ async function handleItineraryRequest(options) {
                     opacity: 0.9
                 };
             } else {
-                // Cas d'un mode "undefined" ou autre
                 style = { color: '#6c757d', weight: 4 };
             }
             
@@ -406,7 +431,7 @@ async function handleItineraryRequest(options) {
     }
 }
 // ===================================================================
-// FIN DES MODIFICATIONS
+// FIN DE LA FONCTION CALLBACK
 // ===================================================================
 
 
@@ -419,7 +444,7 @@ function updateData(timeInfo) {
     }
 
     const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
-    const currentDate = timeInfo ? timeInfo.date : new Date(); 
+    const currentDate = timeInfo ? timeInfo.date : timeManager.getCurrentDate(); // Utilise la date du manager
     
     updateClock(currentSeconds);
     
@@ -445,7 +470,7 @@ function updateClock(seconds) {
     const timeString = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     document.getElementById('current-time').textContent = timeString;
     
-    const now = new Date();
+    const now = timeManager.getCurrentDate(); // Utilise la date du manager
     const dateString = now.toLocaleDateString('fr-FR', { 
         weekday: 'short', 
         day: 'numeric', 
@@ -468,4 +493,5 @@ function updateDataStatus(message, status = '') {
     statusElement.textContent = message;
 }
 
+// Démarre l'application
 initializeApp();
