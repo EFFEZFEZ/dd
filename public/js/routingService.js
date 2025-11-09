@@ -2,9 +2,12 @@
  * routingService.js
  * * Service pour interroger le backend et décoder les itinéraires.
  *
- * VERSION MISE À JOUR :
- * 1. Ajout de la fonction `decodePolyline` (requise par main.js)
- * 2. Conserve la logique `getItinerary` (POST) que nous avons corrigée.
+ * VERSION CORRIGÉE (TRÈS IMPORTANT) :
+ * 1. L'erreur "reading 'lat'" venait d'ici.
+ * 2. 'getItinerary' reçoit 'options' de plannerPanel
+ * (ex: { fromPlace: "...", toPlace: "...", dateTime: "..." }).
+ * 3. Il adapte cet objet pour le backend (qui attend 'from', 'to', 'departure_time').
+ * 4. Il NE TENTE PLUS de lire '.lat' ou '.lon' des options.
  */
 
 // Le bon endpoint qui correspond au nom du fichier backend
@@ -12,29 +15,30 @@ const API_PROXY_ENDPOINT = '/api/calculer-itineraire';
 
 /**
  * Demande un itinéraire au backend.
- * @param {object} options - L'objet d'options de main.js
+ * @param {object} options - L'objet d'options de plannerPanel.js
+ * (contient fromPlace, toPlace, dateTime, timeMode)
  * @returns {Promise<object>} Une promesse qui se résout avec les données de l'itinéraire.
  */
 async function getItinerary(options) {
   
-  const { fromCoords, toCoords, isoDateTime, timeMode } = options;
+  // 'options' vient de plannerPanel et ressemble à :
+  // { fromPlace: "FLUNCH PERIGUEUX", toPlace: "Champcevinel", ... }
+  // ou { fromPlace: "lat,lng", toPlace: "lat,lng", ... }
 
-  // 1. Formate les coordonnées en chaînes, comme le backend les attend
-  // (Note: main.js envoie des {lat, lon}, mais routingService les formate)
-  const from = `${options.fromPlace.lat},${options.fromPlace.lon}`;
-  const to = `${options.toPlace.lat},${options.toPlace.lon}`;
-
-  // 2. Prépare le corps de la requête
+  // 1. Prépare le corps de la requête pour le backend
   const requestBody = {
-    from: from,
-    to: to,
+    // Renomme 'fromPlace' en 'from' (ce que le backend attend)
+    from: options.fromPlace,
+    
+    // Renomme 'toPlace' en 'to' (ce que le backend attend)
+    to: options.toPlace,
   };
 
-  // 3. Ajoute les bonnes clés de temps que le backend lira
-  if (timeMode === 'DEPARTURE') {
-    requestBody.departure_time = isoDateTime;
+  // 2. Ajoute les bonnes clés de temps que le backend lira
+  if (options.timeMode === 'DEPARTURE') {
+    requestBody.departure_time = options.dateTime;
   } else {
-    requestBody.arrival_time = isoDateTime;
+    requestBody.arrival_time = options.dateTime;
   }
 
   try {
@@ -43,7 +47,8 @@ async function getItinerary(options) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      // Envoie le corps adapté
+      body: JSON.stringify(requestBody), 
     });
 
     const responseData = await response.json();
@@ -63,10 +68,8 @@ async function getItinerary(options) {
 }
 
 /**
- * NOUVELLE FONCTION (Requise par main.js)
  * Décode une polyligne encodée (Google) en un tableau de [lat, lng].
- * @param {string} encoded - La chaîne de polyligne.
- * @returns {Array<[number, number]>} Un tableau de [lat, lng].
+ * (Cette fonction est correcte et reste inchangée)
  */
 function decodePolyline(encoded) {
     let points = [];
@@ -93,14 +96,13 @@ function decodePolyline(encoded) {
         let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
         lng += dlng;
 
-        // Note: Google renvoie [lat, lng], ce que Leaflet attend.
         points.push([lat * 1e-5, lng * 1e-5]);
     }
     return points;
 }
 
-// Exporte le service (AVEC la nouvelle fonction)
+// Exporte le service
 export const RoutingService = {
   getItinerary,
-  decodePolyline, // <-- Exporte la nouvelle fonction
+  decodePolyline,
 };
