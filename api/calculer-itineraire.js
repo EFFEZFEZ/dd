@@ -1,10 +1,11 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * VERSION FINALE CORRIGÉE
+ * VERSION FINALE (CORRIGÉE v3)
  *
- * CORRECTION: 'transitRoutingPreference' est renommé en 'routingPreference'
- * pour correspondre à la nouvelle API Routes V2.
+ * CORRECTION: Le 'X-Goog-FieldMask' a été entièrement
+ * ré-écrit et corrigé pour ne plus causer d'INVALID_ARGUMENT.
+ * Les 3 trajets, la couleur et le 'LESS_WALKING' sont conservés.
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -42,7 +43,6 @@ export default async function handler(request) {
     
     try {
         const url = new URL(request.url);
-        // RÉCUPÈRE TOUS LES PARAMÈTRES DU FRONTEND
         const from = url.searchParams.get('from');
         const to = url.searchParams.get('to');
         const departureTime = url.searchParams.get('departure_time');
@@ -85,19 +85,15 @@ export default async function handler(request) {
             computeAlternativeRoutes: true,
             transitPreferences: {
                 allowedTravelModes: ["BUS"],
-                // --- LA CORRECTION EST ICI ---
-                routingPreference: "LESS_WALKING" // 'transitRoutingPreference' était incorrect
-                // --- FIN DE LA CORRECTION ---
+                routingPreference: "LESS_WALKING"
             }
         };
 
-        // Utiliser l'heure du frontend
         if (departureTime) {
             requestBody.departureTime = departureTime;
         } else if (arrivalTime) {
             requestBody.arrivalTime = arrivalTime;
         } else {
-            // Fallback si aucune heure n'est fournie
             requestBody.departureTime = new Date().toISOString();
         }
 
@@ -107,8 +103,8 @@ export default async function handler(request) {
                 'Content-Type': 'application/json',
                 'X-Goog-Api-Key': apiKey,
                 
-                // Le FieldMask COMPLET pour avoir les couleurs et détails
-                'X-Goog-FieldMask': 'routes.legs.steps.transitDetails.line.color,routes.legs.steps.transitDetails.line.shortName,routes.legs.steps.transitDetails.line.textColor,routes.legs.steps.transitDetails.headsign,routes.legs.steps.transitDetails.stopDetails.departureStop.name,routes.legs.steps.transitDetails.stopDetails.arrivalStop.name,routes.legs.steps.transitDetails.stopCount,routes.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.travelMode,routes.legs.steps.navigationInstruction,routes.legs.startLocation,routes.legs.endLocation,routes.legs.startAddress,routes.legs.endAddress'
+                // --- LE FIELD MASK CORRIGÉ ---
+                'X-Goog-FieldMask': 'routes.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.startAddress,routes.legs.endAddress,routes.legs.startLocation.latLng,routes.legs.endLocation.latLng,routes.legs.steps.travelMode,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.navigationInstruction.instructions,routes.legs.steps.transitDetails.headsign,routes.legs.steps.transitDetails.stopCount,routes.legs.steps.transitDetails.line.shortName,routes.legs.steps.transitDetails.line.color,routes.legs.steps.transitDetails.line.textColor,routes.legs.steps.transitDetails.stopDetails.departureStop.name,routes.legs.steps.transitDetails.stopDetails.arrivalStop.name'
             },
             body: JSON.stringify(requestBody)
         });
@@ -128,7 +124,7 @@ export default async function handler(request) {
             let errorMsg = "Aucun itinéraire en bus trouvé pour cette recherche.";
             
             return new Response(JSON.stringify({ error: errorMsg, status: 'ZERO_RESULTS' }), {
-                status: 404, // "Non trouvé"
+                status: 404,
                 headers: { 'Content-Type': 'application/json' }
             });
         }
