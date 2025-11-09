@@ -1,10 +1,11 @@
 /**
  * Fichier : /api/calculer-itineraire.js
  *
- * VERSION FINALE SÉCURISÉE (pour Netlify)
+ * VERSION FINALE (NETLIFY + API ROUTES)
  *
- * CORRECTION : Utilise 'return new Response' (compatible Netlify)
- * et force '&transit_mode=bus' & '&departure_time=now'
+ * Utilise la nouvelle API Routes et "TransitPreferences"
+ * pour forcer UNIQUEMENT les trajets en bus ("BUS")
+ * et exclure les trains ("RAIL", "TER").
  */
 
 // Fonction pour vérifier si c'est des coordonnées
@@ -15,22 +16,27 @@ function isCoordinates(input) {
     return !isNaN(parts[0]) && !isNaN(parts[1]);
 }
 
-// Fonction pour formater l'adresse
-function formatPlace(input) {
+// Fonction pour créer l'objet "Place" pour la nouvelle API
+function createPlace(input) {
     if (isCoordinates(input)) {
-        return input;
+        const parts = input.split(',');
+        return {
+            location: {
+                latLng: {
+                    latitude: parseFloat(parts[0]),
+                    longitude: parseFloat(parts[1])
+                }
+            }
+        };
     }
-    if (input && input.trim() !== '') {
-        return `${input}, Dordogne`;
-    }
-    return null;
+    // Si c'est du texte, on ajoute le contexte
+    return {
+        address: `${input}, Dordogne`
+    };
 }
 
 export default async function handler(request) {
     
-    // Message pour prouver que le NOUVEAU code s'exécute
-    console.log("Exécution de la fonction API v3 (Netlify) !");
-
     try {
         const url = new URL(request.url);
         const from = url.searchParams.get('from');
@@ -39,7 +45,6 @@ export default async function handler(request) {
         const apiKey = process.env.BACKEND_API_KEY;
 
         if (!apiKey) {
-            console.error("Erreur 500 : BACKEND_API_KEY non trouvée.");
             return new Response(JSON.stringify({ error: "Clé API Backend non configurée sur le serveur Netlify." }), {
                 status: 500,
                 headers: { 'Content-Type': 'application/json' }
@@ -53,32 +58,54 @@ export default async function handler(request) {
             });
         }
 
-        const fromPlace = formatPlace(from);
-        const toPlace = formatPlace(to);
+        const fromPlace = createPlace(from);
+        const toPlace = createPlace(to);
 
-        if (!fromPlace || !toPlace) {
-             return new Response(JSON.stringify({ error: "Adresses de départ ou d'arrivée invalides." }), {
-                status: 400,
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
+        const now = new Date();
 
-        const nowInSeconds = Math.floor(Date.now() / 1000);
+        // --- C'EST ICI QU'ON UTILISE LA NOUVELLE API ---
+        
+        const apiUrl = "https://routes.googleapis.com/directions/v2:computeRoutes";
 
-        // L'URL FINALE qui résout tous tes problèmes
-        const apiUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${fromPlace}&destination=${toPlace}&mode=transit&transit_mode=bus&departure_time=${nowInSeconds}&key=${apiKey}&language=fr`;
+        const requestBody = {
+            origin: fromPlace,
+            destination: toPlace,
+            travelMode: "TRANSIT",
+            departureTime: now.toISOString(),
+            languageCode: "fr",
+            // On force le calcul à n'utiliser QUE le bus
+            transitPreferences: {
+                allowedTravelModes: ["BUS"] // Exclut "TRAIN", "RAIL", etc.
+            }
+        };
 
-        const res = await fetch(apiUrl);
+        const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': apiKey,
+                // Masque de champ pour ne récupérer que ce dont on a besoin
+                'X-Goog-FieldMask': 'routes.legs.steps,routes.legs.duration,routes.legs.departureTime,routes.legs.arrivalTime,routes.legs.startAddress,routes.legs.endAddress'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
         const data = await res.json();
 
-        if (data.status !== 'OK') {
-            console.error("Erreur API Google:", data.status, data.error_message);
-            return new Response(JSON.stringify({ error: data.error_message || data.status, status: data.status }), {
-                status: 500,
+        // L'API Routes renvoie un objet vide ou une erreur si aucun trajet n'est trouvé
+        if (!data.routes || data.routes.length === 0) {
+            console.error("Erreur API Routes:", data.error || "Aucun trajet trouvé");
+            
+            let errorMsg = "Aucun itinéraire en bus trouvé.";
+            if (data.error) errorMsg = data.error.message;
+
+            return new Response(JSON.stringify({ error: errorMsg, status: 'ZERO_RESULTS' }), {
+                status: 500, // On renvoie 500 mais avec un message clair
                 headers: { 'Content-Type': 'application/json' }
             });
         }
 
+        // Succès : on retourne la réponse
         return new Response(JSON.stringify(data), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
