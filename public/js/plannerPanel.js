@@ -2,7 +2,7 @@
  * Fichier : /js/plannerPanel.js
  *
  * MIS À JOUR :
- * 1. Utilise la nouvelle API "Place Autocomplete Element" de Google.
+ * 1. Utilise la nouvelle API "Place Autocomplete" de Google.
  * 2. Lit le nouveau format de réponse de "Routes API".
  */
 export class PlannerPanel {
@@ -192,25 +192,36 @@ export class PlannerPanel {
             icon = 'directions_bus';
             // CORRECTION: 'transit_details' -> 'transitDetails'
             const transit = step.transitDetails;
-            const line = transit.line;
-            const routeColor = line.color || '#333';
-            const textColor = line.textColor || this.getContrastColor(routeColor);
+            
+            // --- CORRECTION ERREUR "undefined" ---
+            // On vérifie si 'line' existe. Si non, c'est "undefined"
+            if (transit && transit.line) {
+                const line = transit.line;
+                const routeColor = line.color || '#333';
+                const textColor = line.textColor || this.getContrastColor(routeColor);
 
-            details = `
-                <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.stopDetails.departureStop.name}</strong></div>
-                <div class="leg-route">
-                    <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
-                        ${line.shortName || line.name}
-                    </span>
-                    <strong>Direction ${transit.headsign}</strong>
-                </div>
-                <div class="leg-time-info">
-                    ${transit.stopCount} arrêt(s) (${legDuration})
-                </div>
-                <div class="leg-time-info" style="margin-top: 5px;">
-                    Descendre à <strong>${transit.stopDetails.arrivalStop.name}</strong>
-                </div>
-            `;
+                details = `
+                    <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.stopDetails.departureStop.name}</strong></div>
+                    <div class="leg-route">
+                        <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
+                            ${line.shortName || line.name}
+                        </span>
+                        <strong>Direction ${transit.headsign}</strong>
+                    </div>
+                    <div class="leg-time-info">
+                        ${transit.stopCount} arrêt(s) (${legDuration})
+                    </div>
+                    <div class="leg-time-info" style="margin-top: 5px;">
+                        Descendre à <strong>${transit.stopDetails.arrivalStop.name}</strong>
+                    </div>
+                `;
+            } else {
+                // Cas où 'line' est undefined (le bug "undefined")
+                details = `
+                    <strong>${step.instruction}</strong>
+                    <div class="leg-time-info">${legDuration}</div>
+                `;
+            }
         } else {
             icon = 'help';
             details = `<strong>${step.instruction || 'Étape inconnue'}</strong>`;
