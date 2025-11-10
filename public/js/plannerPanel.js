@@ -1,191 +1,157 @@
 /**
  * Fichier : /js/plannerPanel.js
- * VERSION OPTIMISÉE POUR WEB COMPONENTS (gmp-place-autocomplete)
+ *
+ * Gère le panneau latéral et affiche les résultats
+ * de l'API Google Directions.
+ *
+ * UTILISE : google.maps.places.Autocomplete (ancienne API JavaScript)
+ * qui fonctionne car elle capte l'événement 'place_changed'.
  */
-
 export class PlannerPanel {
     constructor(panelId, dataManager, mapRenderer, searchCallback) {
         this.panel = document.getElementById(panelId);
         this.dataManager = dataManager;
         this.mapRenderer = mapRenderer;
-        this.searchCallback = searchCallback;
+        this.searchCallback = searchCallback; // La fonction de main.js
 
-        // Récupération des Web Components
-        this.fromAutocompleteElement = document.getElementById('planner-from-autocomplete');
-        this.toAutocompleteElement = document.getElementById('planner-to-autocomplete');
-
-        // Récupération des inputs natifs pour lecture/écriture de la valeur
+        // Éléments...
         this.fromInput = document.getElementById('planner-from');
         this.toInput = document.getElementById('planner-to');
-
         this.searchButton = document.getElementById('btn-search-itinerary');
         this.locateButton = document.getElementById('btn-use-location');
         this.loadingSpinner = document.getElementById('planner-loading');
-
-        this.summaryContainer = document.getElementById('itinerary-summary-container');
-        this.stepsContainer = document.getElementById('itinerary-steps-container');
+        this.summaryContainer = document.getElementById('itinerary-summary');
+        this.stepsContainer = document.getElementById('itinerary-steps');
         
-        // Nouveaux éléments pour l'heure/date (à ajouter dans l'HTML)
+        // AJOUTS STRUCTURELS (éléments de date/heure)
         this.departureTab = document.getElementById('planner-mode-departure');
         this.arrivalTab = document.getElementById('planner-mode-arrival');
         this.dateInput = document.getElementById('planner-date');
         this.timeInput = document.getElementById('planner-time');
         this.timeMode = 'DEPARTURE'; 
-        
-        this.fromCoords = null; 
+
+        // Stocke les coordonnées si une suggestion est cliquée
+        this.fromCoords = null;
         this.toCoords = null;
-        this.currentRoutes = [];
 
-        this.setDefaultDateTime();
+        this.setDefaultDateTime(); // Initialise la date/heure
         this.bindEvents();
-        this.waitForGoogleMaps();
-    }
-    
-    // --- Initialisation des APIs ---
-    
-    waitForGoogleMaps() {
-        const init = async () => {
-            console.log("✅ Google Maps chargé, initialisation de l'autocomplétion");
-            try {
-                await customElements.whenDefined('gmp-place-autocomplete'); // Attente du Web Component
-                this.setupPlaceChangeListeners(); // Capture des coordonnées
-            } catch (error) {
-                console.error("❌ Erreur lors du chargement des bibliothèques Google Maps", error);
-                this.showError("Impossible de charger le service d'adresses.");
-            }
+        
+        // Initialiser l'autocomplétion (méthode de chargement asynchrone)
+        window.initMap = () => {
+            console.log("Google Maps JS est prêt, initialisation de l'autocomplete.");
+            this.initAutocomplete(); 
         };
-
-        if (window.googleMapsReady) {
-            init();
-        } else {
-            window.addEventListener('google-maps-ready', init, { once: true });
+        // Tente l'initialisation immédiate si Google Maps est déjà chargé
+        if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+            this.initAutocomplete();
         }
     }
     
+    // NOUVELLE FONCTION (pour éviter des erreurs si les inputs sont ajoutés)
     setDefaultDateTime() {
-        const now = new Date();
-        const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
-        this.dateInput.value = localNow.toISOString().split('T')[0];
-        this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5);
+        if (this.dateInput && this.timeInput) {
+            const now = new Date();
+            const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
+            this.dateInput.value = localNow.toISOString().split('T')[0];
+            this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5);
+        }
     }
     
-    /**
-     * NOUVEAU : Capture l'événement de sélection du Web Component et stocke les coordonnées.
-     */
-    setupPlaceChangeListeners() {
-        
-        const updateCoords = (event, isFrom) => {
-            const place = event.detail.place;
-            
-            if (place && place.geometry && place.geometry.location) {
-                const location = place.geometry.location;
-                const coords = `${location.lat()},${location.lng()}`;
-                
-                if (isFrom) {
-                    this.fromCoords = coords;
-                    console.log("✅ Coords DÉPART via Placechange:", coords);
-                } else {
-                    this.toCoords = coords;
-                    console.log("✅ Coords ARRIVÉE via Placechange:", coords);
-                }
-                this.showError(null);
-                
-            } else {
-                console.warn("❌ Place sélectionnée invalide ou sans géométrie.");
-                if (isFrom) {
-                    this.fromCoords = null;
-                } else {
-                    this.toCoords = null;
-                }
-            }
+    initAutocomplete() {
+        if (typeof google === 'undefined' || !google.maps.places) {
+            console.warn("Google Places API n'est pas chargée. Les suggestions ne fonctionneront pas.");
+            return;
+        }
+
+        const center = { lat: 45.1833, lng: 0.7167 }; // Périgueux
+        const defaultBounds = {
+            north: center.lat + 0.3,
+            south: center.lat - 0.3,
+            east: center.lng + 0.3,
+            west: center.lng - 0.3,
         };
-
-        // Événement DÉPART: La source fiable de coordonnées pour la sélection
-        this.fromAutocompleteElement.addEventListener('gmp-places-autocomplete:placechange', (e) => updateCoords(e, true));
-
-        // Événement ARRIVÉE: La source fiable de coordonnées pour la sélection
-        this.toAutocompleteElement.addEventListener('gmp-places-autocomplete:placechange', (e) => updateCoords(e, false));
         
-        // Reset des coordonnées si l'utilisateur vide les champs manuellement
-        if (this.fromInput) {
-            this.fromInput.addEventListener('input', (e) => {
-                if (e.target.value === '') {
-                    this.fromCoords = null;
-                }
-            });
-        }
+        const options = {
+            bounds: defaultBounds,
+            componentRestrictions: { country: "fr" },
+            strictBounds: true, // Force les résultats à être dans cette zone
+            fields: ["name", "formatted_address", "geometry"],
+        };
         
-        if (this.toInput) {
-            this.toInput.addEventListener('input', (e) => {
-                if (e.target.value === '') {
-                    this.toCoords = null;
-                }
-            });
-        }
+        const fromAutocomplete = new google.maps.places.Autocomplete(this.fromInput, options);
+        const toAutocomplete = new google.maps.places.Autocomplete(this.toInput, options);
+
+        // --- GESTION CRITIQUE DES COORDONNÉES ---
+        fromAutocomplete.addListener('place_changed', () => {
+            const place = fromAutocomplete.getPlace();
+            if (place.geometry) {
+                const loc = place.geometry.location;
+                // Stocke les coordonnées
+                this.fromCoords = `${loc.lat()},${loc.lng()}`;
+                // Maintient le nom dans le champ
+                this.fromInput.value = place.name;
+            }
+        });
+        
+        toAutocomplete.addListener('place_changed', () => {
+             const place = toAutocomplete.getPlace();
+             if (place.geometry) {
+                const loc = place.geometry.location;
+                this.toCoords = `${loc.lat()},${loc.lng()}`;
+                this.toInput.value = place.name;
+            }
+        });
+
+        // Si l'utilisateur tape sans choisir, on efface les coordonnées stockées
+        this.fromInput.addEventListener('input', () => { this.fromCoords = null; });
+        this.toInput.addEventListener('input', () => { this.toCoords = null; });
     }
-    // --- Fin de la gestion des APIs ---
-    
+
     bindEvents() {
         // Logique des tabs Départ/Arrivée
-        this.departureTab.addEventListener('click', () => {
-            this.timeMode = 'DEPARTURE';
-            this.departureTab.classList.add('active');
-            this.arrivalTab.classList.remove('active');
-        });
+        if (this.departureTab) {
+            this.departureTab.addEventListener('click', () => {
+                this.timeMode = 'DEPARTURE';
+                this.departureTab.classList.add('active');
+                this.arrivalTab.classList.remove('active');
+            });
+            this.arrivalTab.addEventListener('click', () => {
+                this.timeMode = 'ARRIVAL';
+                this.arrivalTab.classList.add('active');
+                this.departureTab.classList.remove('active');
+            });
+        }
         
-        this.arrivalTab.addEventListener('click', () => {
-            this.timeMode = 'ARRIVAL';
-            this.arrivalTab.classList.add('active');
-            this.departureTab.classList.remove('active');
-        });
-
         this.searchButton.addEventListener('click', () => {
-            const from = this.fromCoords; // Utilise uniquement les coordonnées capturées
-            const to = this.toCoords;
-            const timeMode = this.timeMode;
-            const date = this.dateInput.value;
-            const time = this.timeInput.value;
+            // Utilise les coordonnées si elles existent (sélection de suggestion), sinon le texte
+            const from = this.fromCoords || this.fromInput.value;
+            const to = this.toCoords || this.toInput.value;
 
-            if (!from || !to) {
-                console.error("❌ Coordonnées manquantes!");
-                this.showError("Veuillez **sélectionner** une adresse dans la liste de suggestions.");
-                return;
+            if (from && to) {
+                this.showLoading();
+                // Appelle la fonction de main.js avec les coordonnées ou le texte
+                this.searchCallback(from, to); 
             }
-            if (!date || !time) {
-                this.showError("Veuillez remplir la date et l'heure.");
-                return;
-            }
-            
-            const isoDateTime = `${date}T${time}:00Z`;
-            const options = {
-                fromPlace: from,
-                toPlace: to,
-                timeMode: timeMode, 
-                dateTime: isoDateTime
-            };
-            
-            this.showLoading("Calcul de l'itinéraire...");
-            this.searchCallback(options); 
+            // Réinitialiser après la recherche
+            this.fromCoords = null;
+            this.toCoords = null;
         });
 
         this.locateButton.addEventListener('click', () => {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
                 .on('locationfound', (e) => {
-                    if (this.fromInput) {
-                        this.fromInput.value = "Ma position actuelle";
-                    }
-                    this.fromCoords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`;
+                    const coords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`;
+                    this.fromInput.value = "Ma position"; 
+                    this.fromCoords = coords; 
                 })
-                .on('locationerror', () => {
-                    alert("Impossible de vous localiser. Vérifiez les permissions de votre navigateur.");
+                .on('locationerror', (e) => {
+                    alert("Impossible de vous localiser.");
                 });
         });
     }
-    
-    // --- Logique d'affichage (Inchangée) ---
 
-    showLoading(message = "Recherche en cours...") {
-        this.loadingSpinner.querySelector('p').textContent = message;
+    showLoading() {
         this.loadingSpinner.classList.remove('hidden');
         this.summaryContainer.innerHTML = '';
         this.stepsContainer.innerHTML = '';
@@ -197,193 +163,90 @@ export class PlannerPanel {
 
     showError(message) {
         this.hideLoading();
-        this.summaryContainer.innerHTML = message ? `<p style="color: #dc2626; padding: 0 1.5rem;">${message}</p>` : '';
-        this.stepsContainer.innerHTML = '';
+        this.summaryContainer.innerHTML = `<p style="color: red; padding: 0 1.5rem;">${message}</p>`;
     }
 
-    groupSteps(steps) {
-        const groupedSteps = [];
-        let currentWalkStep = null;
-
-        for (const step of steps) {
-            if (!step) continue; 
-
-            if (step.travelMode === 'WALK') {
-                if (!currentWalkStep) {
-                    currentWalkStep = {
-                        ...step,
-                        navigationInstruction: step.navigationInstruction || { instructions: "Marcher" }, 
-                        distanceMeters: 0,
-                        staticDuration: "0s"
-                    };
-                }
-                const currentDurationSeconds = parseInt(currentWalkStep.staticDuration.slice(0, -1)) || 0;
-                const stepDurationSeconds = parseInt(step.staticDuration.slice(0, -1) || 0);
-
-                currentWalkStep.distanceMeters += step.distanceMeters || 0; 
-                currentWalkStep.staticDuration = (currentDurationSeconds + stepDurationSeconds) + "s";
-            } else {
-                if (currentWalkStep) {
-                    groupedSteps.push(currentWalkStep);
-                    currentWalkStep = null;
-                }
-                groupedSteps.push(step);
-            }
-        }
-
-        if (currentWalkStep) {
-            groupedSteps.push(currentWalkStep);
-        }
-        return groupedSteps;
-    }
-
+    /**
+     * Affiche l'itinéraire (réponse Google) dans le panneau
+     */
     displayItinerary(itineraryData) {
         this.hideLoading();
-        this.summaryContainer.innerHTML = '';
         this.stepsContainer.innerHTML = '';
-        this.currentRoutes = [];
 
-        if (!itineraryData.routes || itineraryData.routes.length === 0) { 
+        if (!itineraryData.routes || itineraryData.routes.length === 0) {
             this.showError("Aucun itinéraire trouvé.");
             return;
         }
 
-        this.currentRoutes = itineraryData.routes.slice(0, 3);
+        const route = itineraryData.routes[0];
+        const leg = route.legs[0]; 
 
-        this.currentRoutes.forEach((route, index) => {
-            const leg = route.legs[0]; 
-            const duration = this.dataManager.formatDuration(parseInt(route.duration.slice(0, -1)));
-            const departureTime = leg.departureTime ? new Date(leg.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
-            const arrivalTime = leg.arrivalTime ? new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+        // Utilise la fonction de DataManager (maintenant déplacée dans dataManager.js)
+        const duration = this.dataManager.formatDuration(leg.duration.value);
+        const departureText = leg.departure_time?.text;
+        const arrivalText = leg.arrival_time?.text;
 
-            let modesHtml = '';
-            const groupedSteps = this.groupSteps(leg.steps);
-            groupedSteps.forEach(step => {
-                const icon = step.travelMode === 'WALK' ? 'directions_walk' : 'directions_bus';
-                modesHtml += `<span class="material-icons">${icon}</span>`;
-            });
+        this.summaryContainer.innerHTML = `
+            <h4>Le plus rapide : ${duration}</h4>
+            ${ (departureText && arrivalText) ?
+                `<p>${departureText} &ndash; ${arrivalText}</p>` :
+                '' 
+            }
+        `;
 
-            const summaryTab = document.createElement('div');
-            summaryTab.className = 'itinerary-summary-tab';
-            summaryTab.dataset.index = index;
-            summaryTab.innerHTML = `
-                <h4>
-                    <span>${duration}</span>
-                    <span>${departureTime} &ndash; ${arrivalTime}</span>
-                </h4>
-                <div class="leg-modes">${modesHtml}</div>
-            `;
-            
-            summaryTab.addEventListener('click', () => this.activateRouteTab(index));
-            this.summaryContainer.appendChild(summaryTab);
-
-            const stepsContent = document.createElement('div');
-            stepsContent.className = 'itinerary-steps-content';
-            stepsContent.id = `steps-content-${index}`;
-            
-            groupedSteps.forEach(step => {
-                const stepElement = this.createLegStep(step);
-                if (stepElement) { 
-                    stepsContent.appendChild(stepElement);
-                }
-            });
-            this.stepsContainer.appendChild(stepsContent);
-        });
-
-        this.activateRouteTab(0);
-    }
-
-    activateRouteTab(index) {
-        this.summaryContainer.querySelectorAll('.itinerary-summary-tab').forEach((tab, i) => {
-            tab.classList.toggle('active', i === index);
-        });
-        
-        this.stepsContainer.querySelectorAll('.itinerary-steps-content').forEach((content, i) => {
-            content.classList.toggle('active', i === index);
+        leg.steps.forEach(step => {
+            this.stepsContainer.appendChild(this.createLegStep(step));
         });
     }
 
+    /** Crée une étape de trajet (Marche ou Bus) */
     createLegStep(step) {
-        const instruction = (step.navigationInstruction ? step.navigationInstruction.instructions : null) || 
-                            (step.travelMode === 'WALK' ? 'Marcher' : 'Continuer'); 
-
-        if (!instruction || instruction === 'undefined') { 
-            return null;
-        }
-        
         const el = document.createElement('div');
         el.className = 'itinerary-leg';
-        el.dataset.mode = step.travelMode;
+        el.dataset.mode = step.travel_mode;
 
-        const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1) || 0)); 
-        
-        const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
-        const endTime = step.arrivalTime ? new Date(step.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+        const legDuration = step.duration.text;
+        const startTime = step.departure_time?.text || '';
 
-        let icon, details, iconStyle = '';
+        let icon, details;
 
-        if (step.travelMode === 'WALK') {
+        if (step.travel_mode === 'WALKING') {
             icon = 'directions_walk';
-            iconStyle = `style="background-color: #f0f0f0;"`;
-            const distanceKm = (step.distanceMeters / 1000).toFixed(1);
-            
             details = `
-                <strong>${instruction}</strong>
-                <div class="leg-time-info">${legDuration} (${distanceKm} km)</div>
+                <strong>${step.html_instructions}</strong>
+                <div class="leg-time-info">${legDuration} (${step.distance.text})</div>
             `;
-        } 
-        else if (step.travelMode === 'TRANSIT') {
+        } else if (step.travel_mode === 'TRANSIT') {
             icon = 'directions_bus';
-            const transit = step.transitDetails;
-            
-            if (transit && transit.line) {
-                const line = transit.line;
-                const routeColor = `#${line.color}` || '#3388ff';
-                const textColor = `#${line.textColor}` || this.getContrastColor(routeColor);
-                
-                iconStyle = `style="background-color: ${routeColor}; color: ${textColor};"`;
+            const transit = step.transit_details;
+            const line = transit.line;
+            // Utilise la couleur du badge fournie par l'API
+            const routeColor = line.color || '#333';
+            const textColor = line.text_color || this.getContrastColor(routeColor);
 
-                details = `
-                    <div class="leg-route">
-                        <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
-                            ${line.shortName || line.name} 
-                        </span>
-                        <strong>Direction ${transit.headsign}</strong>
-                    </div>
-                    <div class="leg-time-info">
-                        Prendre à <strong>${transit.stopDetails.departureStop.name}</strong>
-                        ${startTime ? `<span class="time-detail">(Départ: ${startTime})</span>` : ''}
-                    </div>
-                    <div class="leg-time-info" style="margin-top: 5px;">
-                        Descendre à <strong>${transit.stopDetails.arrivalStop.name}</strong>
-                        ${endTime ? `<span class="time-detail">(Arrivée: ${endTime})</span>` : ''}
-                    </div>
-                    <div class="leg-time-info" style="margin-top: 5px;">
-                        ${transit.stopCount} arrêt(s) (${legDuration})
-                    </div>
-                `;
-            } 
-            else {
-                iconStyle = `style="background-color: #6c757d;"`; 
-                details = `
-                    <strong>${instruction}</strong>
-                    <div class="leg-time-info">
-                        ${startTime ? `Départ: ${startTime}` : ''}
-                        ${endTime ? ` - Arrivée: ${endTime}` : ''}
-                    </div>
-                    <div class="leg-time-info">${legDuration}</div>
-                `;
-            }
-        } 
-        else {
+            details = `
+                <div class="leg-time-info">${startTime} - Prendre à <strong>${transit.departure_stop.name}</strong></div>
+                <div class="leg-route">
+                    <span class="leg-badge" style="background-color: ${routeColor}; color: ${textColor};">
+                        ${line.short_name || line.name}
+                    </span>
+                    <strong>Direction ${transit.headsign}</strong>
+                </div>
+                <div class="leg-time-info">
+                    ${transit.num_stops} arrêt(s) (${legDuration})
+                </div>
+                <div class="leg-time-info" style="margin-top: 5px;">
+                    Descendre à <strong>${transit.arrival_stop.name}</strong>
+                </div>
+            `;
+        } else {
             icon = 'help';
-            iconStyle = `style="background-color: #6c757d;"`;
-            details = `<strong>${instruction}</strong>`;
+            details = `<strong>${step.html_instructions}</strong>`;
         }
 
         el.innerHTML = `
             <div class="leg-icon">
-                <span class="material-icons" ${iconStyle}>${icon}</span>
+                <span class="material-icons">${icon}</span>
                 <div class="leg-line"></div>
             </div>
             <div class="leg-details">
@@ -393,6 +256,7 @@ export class PlannerPanel {
         return el;
     }
 
+    /** Calcule si le texte doit être blanc ou noir sur une couleur de fond */
     getContrastColor(hexcolor) {
         if (!hexcolor) return '#000000';
         hexcolor = hexcolor.replace("#", "");
