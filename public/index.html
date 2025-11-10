@@ -20,18 +20,9 @@
     
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 
-    <link rel="stylesheet" href="style.css?v=8"> <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAU0OABc_T8AODV3UorpdYXsBVUFYMqMfQ&v=beta&callback=initMap"
-            defer
-    ></script>
-    <script>
-        // Cette fonction 'callback' est appelée par le script ci-dessus
-        function initMap() {
-            // On signale à l'application que Google est prêt
-            window.googleMapsReady = true;
-            window.dispatchEvent(new Event('google-maps-ready'));
-        }
-    </script>
-    </head>
+    <link rel="stylesheet" href="style.css?v=4">
+
+</head>
 <body>
     
     <div id="app">
@@ -125,7 +116,7 @@
                 <gmp-place-autocomplete 
                     id="planner-from-autocomplete"
                     location-bias="CIRCLE:30000@45.1833,0.7167" 
-                    component-restrictions='{"country": "fr"}'
+                    component-restrictions="country:fr"
                 >
                     <input type="text" id="planner-from" placeholder="Ex: Mairie de Marsac" autocomplete="off">
                 </gmp-place-autocomplete>
@@ -138,7 +129,7 @@
                 <gmp-place-autocomplete 
                     id="planner-to-autocomplete"
                     location-bias="CIRCLE:30000@45.1833,0.7167"
-                    component-restrictions='{"country": "fr"}'
+                    component-restrictions="country:fr"
                 >
                     <input type="text" id="planner-to" placeholder="Ex: Campus Périgord" autocomplete="off">
                 </gmp-place-autocomplete>
@@ -187,7 +178,7 @@
                     <path d="m12 6 3 3-3 3"></path>
                     <path d="M10 15h4"></path>
                 </svg>
-                <h3>Bienvenue sur la carte !</h3>
+                <h3>Bienvenue sur la carte!</h3>
             </div>
             <ol>
                 <li>Les bus en mouvement sont sur la carte.</li>
@@ -198,14 +189,28 @@
             </ol>
             <button id="close-instructions">
                 <span class="material-icons" style="font-size: 1.2rem; margin-right: 0.5rem;">check</span>
-                Compris !
+                Compris!
             </button>
         </div>
     </div>
 
-    <script type="module" src="js/routingService.js?v=8"></script>
-    <script type="module" src="js/plannerPanel.js?v=8"></script>
-    <script type="module" src="js/main.js?v=8"></script>
+    <script>
+      // Cette fonction sera appelée par l'API Google Maps une fois chargée
+      function googleMapsApiLoaded() {
+        console.log("Google Maps API chargée via callback.");
+        // Définit un drapeau global et envoie un événement
+        // que plannerPanel.js écoute
+        window.googleMapsReady = true;
+        window.dispatchEvent(new CustomEvent('google-maps-ready'));
+      }
+    </script>
+    <script async
+      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAU0OABc_T8AODV3UorpdYXsBVUFYMqMfQ&libraries=core,places&v=beta&callback=googleMapsApiLoaded">
+    </script>
+    
+    <script type="module" src="js/routingService.js?v=4"></script>
+    <script type="module" src="js/plannerPanel.js?v=4"></script>
+    <script type="module" src="js/main.js?v=4"></script>
 
 </body>
 </html>
