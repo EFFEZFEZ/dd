@@ -1,6 +1,6 @@
 /**
  * Fichier : /js/plannerPanel.js
- * VERSION CORRIGÉE - Syntaxe réparée + API Google (v=beta)
+ * VERSION CORRIGÉE - Utilisation directe des coordonnées de l'objet Place
  */
 
 export class PlannerPanel {
@@ -10,9 +10,11 @@ export class PlannerPanel {
         this.mapRenderer = mapRenderer;
         this.searchCallback = searchCallback; 
 
+        // Récupération des Web Components
         this.fromAutocompleteElement = document.getElementById('planner-from-autocomplete');
         this.toAutocompleteElement = document.getElementById('planner-to-autocomplete');
         
+        // Récupération des inputs natifs (pour lecture/écriture de la valeur)
         this.fromInput = document.getElementById('planner-from');
         this.toInput = document.getElementById('planner-to');
 
@@ -29,9 +31,9 @@ export class PlannerPanel {
         this.timeInput = document.getElementById('planner-time');
         this.timeMode = 'DEPARTURE'; 
 
-        this.fromCoords = null;
-        this.toCoords = null;
-        this.currentRoutes = []; // ✅ CORRECTION
+        this.fromCoords = null; // Stocke les coordonnées "lat,lng" du départ
+        this.toCoords = null;   // Stocke les coordonnées "lat,lng" de l'arrivée
+        this.currentRoutes = []; 
 
         this.setDefaultDateTime();
         this.bindEvents();
@@ -43,9 +45,11 @@ export class PlannerPanel {
             console.log("✅ Google Maps chargé, initialisation de l'autocomplétion");
             
             try {
+                // Assurez-vous que les bibliothèques Places sont chargées
                 await google.maps.importLibrary("core");
                 await google.maps.importLibrary("places");
                 this.initAutocomplete();
+                this.setupPlaceChangeListeners(); // NOUVELLE MÉTHODE
             } catch (error) {
                 console.error("❌ Erreur lors du chargement des bibliothèques Google Maps", error);
                 this.showError("Impossible de charger le service d'adresses.");
@@ -63,8 +67,8 @@ export class PlannerPanel {
     setDefaultDateTime() {
         const now = new Date();
         const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
-        this.dateInput.value = localNow.toISOString().split('T')[0]; // ✅ CORRECTION
-        this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5); // ✅ CORRECTION
+        this.dateInput.value = localNow.toISOString().split('T')[0]; 
+        this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5);
     }
     
     async initAutocomplete() {
@@ -73,22 +77,17 @@ export class PlannerPanel {
             return;
         }
 
-        // ✅ CORRECTION : Attendre que les composants soient complètement initialisés
+        // Attendre que les composants soient complètement initialisés
         await customElements.whenDefined('gmp-place-autocomplete');
-        
-        // Petit délai supplémentaire pour s'assurer que .input est disponible
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 100)); // Petit délai de sécurité
 
-        // Initialiser le Geocoder pour convertir adresses → coordonnées
-        this.geocoder = new google.maps.Geocoder();
-
-        // Zone de délimitation de la Dordogne
+        // Zone de délimitation de la Dordogne (déjà définie dans le HTML via location-bias)
         const dordogneBounds = new google.maps.LatLngBounds(
             { lat: 44.53, lng: -0.13 },
             { lat: 45.75, lng: 1.50 }
         );
 
-        // Restrictions géographiques
+        // Mise à jour des propriétés (si non fait dans le HTML)
         this.fromAutocompleteElement.locationRestriction = dordogneBounds;
         this.fromAutocompleteElement.strictBounds = true;
         this.fromAutocompleteElement.componentRestrictions = { country: 'fr' };
@@ -97,100 +96,52 @@ export class PlannerPanel {
         this.toAutocompleteElement.strictBounds = true;
         this.toAutocompleteElement.componentRestrictions = { country: 'fr' };
 
-        // ✅ SOLUTION : Géocoder l'adresse quand l'utilisateur appuie sur Entrée ou clique sur une suggestion
+        console.log("✅ Autocomplétion Google Places initialisée.");
+    }
+    
+    /**
+     * NOUVELLE MÉTHODE : Écoute l'événement natif de sélection de Place
+     * qui fournit les coordonnées directement.
+     */
+    setupPlaceChangeListeners() {
         
-        // Fonction pour géocoder une adresse
-        const geocodeAddress = async (address, isFrom = true) => {
-            console.log(`🌍 Géocodage de "${address}"...`);
+        const updateCoords = (event, isFrom) => {
+            const place = event.detail.place;
             
-            try {
-                const result = await this.geocoder.geocode({ 
-                    address: address,
-                    componentRestrictions: { country: 'FR' },
-                    bounds: new google.maps.LatLngBounds(
-                        { lat: 44.53, lng: -0.13 },
-                        { lat: 45.75, lng: 1.50 }
-                    )
-                });
+            // Si une suggestion valide est sélectionnée (elle a une géométrie)
+            if (place && place.geometry && place.geometry.location) {
+                const location = place.geometry.location;
+                const coords = `${location.lat()},${location.lng()}`;
                 
-                if (result.results && result.results.length > 0) {
-                    const location = result.results[0].geometry.location;
-                    const coords = `${location.lat()},${location.lng()}`;
-                    
-                    if (isFrom) {
-                        this.fromCoords = coords;
-                        console.log("✅ Coordonnées DÉPART:", coords);
-                    } else {
-                        this.toCoords = coords;
-                        console.log("✅ Coordonnées ARRIVÉE:", coords);
-                    }
-                    
-                    return coords;
+                if (isFrom) {
+                    this.fromCoords = coords;
+                    console.log("✅ Coords DÉPART via Placechange:", coords);
                 } else {
-                    console.error("❌ Aucun résultat trouvé pour:", address);
-                    return null;
+                    this.toCoords = coords;
+                    console.log("✅ Coords ARRIVÉE via Placechange:", coords);
                 }
-            } catch (error) {
-                console.error("❌ Erreur de géocodage:", error);
-                return null;
+                this.showError(null); // Efface le message d'erreur si présent
+                
+            } else {
+                // Cas d'une sélection invalide (rare)
+                console.warn("❌ Place sélectionnée invalide ou sans géométrie.");
+                if (isFrom) {
+                    this.fromCoords = null;
+                } else {
+                    this.toCoords = null;
+                }
             }
         };
+
+        // Événement DÉPART: La source fiable de coordonnées
+        this.fromAutocompleteElement.addEventListener('gmp-places-autocomplete:placechange', (e) => updateCoords(e, true));
+
+        // Événement ARRIVÉE: La source fiable de coordonnées
+        this.toAutocompleteElement.addEventListener('gmp-places-autocomplete:placechange', (e) => updateCoords(e, false));
         
-        // Écouteurs pour le champ DÉPART
-        let fromDebounceTimer;
-        
-        if (this.fromAutocompleteElement.input) {
-            // Quand l'utilisateur tape ou sélectionne
-            this.fromAutocompleteElement.input.addEventListener('change', async (e) => {
-                const address = e.target.value;
-                if (address && address.trim().length > 3) {
-                    clearTimeout(fromDebounceTimer);
-                    fromDebounceTimer = setTimeout(async () => {
-                        await geocodeAddress(address, true);
-                    }, 500);
-                }
-            });
-            
-            // Quand l'utilisateur appuie sur Entrée
-            this.fromAutocompleteElement.input.addEventListener('keypress', async (e) => {
-                if (e.key === 'Enter') {
-                    const address = e.target.value;
-                    if (address && address.trim().length > 3) {
-                        await geocodeAddress(address, true);
-                    }
-                }
-            });
-        }
-        
-        // Écouteurs pour le champ ARRIVÉE
-        let toDebounceTimer;
-        
-        if (this.toAutocompleteElement.input) {
-            // Quand l'utilisateur tape ou sélectionne
-            this.toAutocompleteElement.input.addEventListener('change', async (e) => {
-                const address = e.target.value;
-                if (address && address.trim().length > 3) {
-                    clearTimeout(toDebounceTimer);
-                    toDebounceTimer = setTimeout(async () => {
-                        await geocodeAddress(address, false);
-                    }, 500);
-                }
-            });
-            
-            // Quand l'utilisateur appuie sur Entrée
-            this.toAutocompleteElement.input.addEventListener('keypress', async (e) => {
-                if (e.key === 'Enter') {
-                    const address = e.target.value;
-                    if (address && address.trim().length > 3) {
-                        await geocodeAddress(address, false);
-                    }
-                }
-            });
-        }
-        
-        // Reset des coordonnées si l'utilisateur efface les champs
-        if (this.fromAutocompleteElement.input) {
-            this.fromAutocompleteElement.input.addEventListener('input', (e) => {
+        // Reset des coordonnées si l'utilisateur vide les champs manuellement
+        if (this.fromInput) {
+            this.fromInput.addEventListener('input', (e) => {
                 if (e.target.value === '') {
                     this.fromCoords = null;
                     console.log("🗑️ Coordonnées DÉPART effacées");
@@ -198,17 +149,18 @@ export class PlannerPanel {
             });
         }
         
-        if (this.toAutocompleteElement.input) {
-            this.toAutocompleteElement.input.addEventListener('input', (e) => {
+        if (this.toInput) {
+            this.toInput.addEventListener('input', (e) => {
                 if (e.target.value === '') {
                     this.toCoords = null;
                     console.log("🗑️ Coordonnées ARRIVÉE effacées");
                 }
             });
         }
-
-        console.log("✅ Autocomplétion Google Places initialisée avec Geocoding.");
     }
+    // Suppression de la fonction geocodeAddress() et des écouteurs 'change' et 'keypress'
+    // car ils sont désormais gérés par setupPlaceChangeListeners()
+    // ----------------------------------------------------------------------------------
 
     bindEvents() {
         this.departureTab.addEventListener('click', () => {
@@ -230,7 +182,6 @@ export class PlannerPanel {
             const date = this.dateInput.value;
             const time = this.timeInput.value;
 
-            // ✅ AJOUT : Logs de debug
             console.log("🔍 Recherche d'itinéraire:");
             console.log("  - Départ (fromCoords):", from);
             console.log("  - Arrivée (toCoords):", to);
@@ -239,7 +190,8 @@ export class PlannerPanel {
 
             if (!from || !to) {
                 console.error("❌ Coordonnées manquantes!");
-                this.showError("Veuillez sélectionner un lieu de départ et d'arrivée valides dans les suggestions.");
+                // MODIFIÉ : Afficher un message plus clair pour l'utilisateur
+                this.showError("Veuillez **sélectionner** une adresse dans la liste de suggestions.");
                 return;
             }
             if (!date || !time) {
@@ -247,6 +199,7 @@ export class PlannerPanel {
                 return;
             }
             
+            // L'API Google Directions attend une date/heure au format RFC3339 (ISO 8601)
             const isoDateTime = `${date}T${time}:00Z`;
             const options = {
                 fromPlace: from,
@@ -263,11 +216,12 @@ export class PlannerPanel {
         this.locateButton.addEventListener('click', () => {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
                 .on('locationfound', (e) => {
-                    // ✅ CORRECTION : Vérifier que .input existe
-                    if (this.fromAutocompleteElement.input) {
-                        this.fromAutocompleteElement.input.value = "Ma position";
+                    // CORRIGÉ : Mise à jour de l'input natif et de la variable interne
+                    if (this.fromInput) {
+                        this.fromInput.value = "Ma position actuelle";
                     }
-                    this.fromCoords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`; 
+                    this.fromCoords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`;
+                    console.log("✅ Position actuelle capturée:", this.fromCoords);
                 })
                 .on('locationerror', () => {
                     alert("Impossible de vous localiser. Vérifiez les permissions de votre navigateur.");
@@ -288,10 +242,11 @@ export class PlannerPanel {
 
     showError(message) {
         this.hideLoading();
-        this.summaryContainer.innerHTML = `<p style="color: #dc2626; padding: 0 1.5rem;">${message}</p>`;
+        this.summaryContainer.innerHTML = message ? `<p style="color: #dc2626; padding: 0 1.5rem;">${message}</p>` : '';
     }
 
     groupSteps(steps) {
+        // ... (Logique inchangée pour le regroupement des étapes de marche)
         const groupedSteps = [];
         let currentWalkStep = null;
 
@@ -302,16 +257,17 @@ export class PlannerPanel {
                 if (!currentWalkStep) {
                     currentWalkStep = {
                         ...step,
-                        navigationInstruction: step.navigationInstruction || { instructions: "Marcher" }, // ✅ CORRECTION
+                        navigationInstruction: step.navigationInstruction || { instructions: "Marcher" }, 
                         distanceMeters: 0,
                         staticDuration: "0s"
                     };
                 }
-                currentWalkStep.distanceMeters += step.distanceMeters || 0; // ✅ CORRECTION
-                currentWalkStep.staticDuration = (
-                    parseInt(currentWalkStep.staticDuration.slice(0, -1)) + 
-                    parseInt(step.staticDuration.slice(0, -1) || 0) // ✅ CORRECTION
-                ) + "s";
+                // Assurez-vous que staticDuration est un nombre avant l'opération
+                const currentDurationSeconds = parseInt(currentWalkStep.staticDuration.slice(0, -1)) || 0;
+                const stepDurationSeconds = parseInt(step.staticDuration.slice(0, -1) || 0);
+
+                currentWalkStep.distanceMeters += step.distanceMeters || 0; 
+                currentWalkStep.staticDuration = (currentDurationSeconds + stepDurationSeconds) + "s";
             } else {
                 if (currentWalkStep) {
                     groupedSteps.push(currentWalkStep);
@@ -333,7 +289,7 @@ export class PlannerPanel {
         this.stepsContainer.innerHTML = '';
         this.currentRoutes = [];
 
-        if (!itineraryData.routes || itineraryData.routes.length === 0) { // ✅ CORRECTION
+        if (!itineraryData.routes || itineraryData.routes.length === 0) { 
             this.showError("Aucun itinéraire trouvé.");
             return;
         }
@@ -341,7 +297,7 @@ export class PlannerPanel {
         this.currentRoutes = itineraryData.routes.slice(0, 3);
 
         this.currentRoutes.forEach((route, index) => {
-            const leg = route.legs[0]; // ✅ CORRECTION
+            const leg = route.legs[0]; 
             const duration = this.dataManager.formatDuration(parseInt(route.duration.slice(0, -1)));
             const departureTime = leg.departureTime ? new Date(leg.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
             const arrivalTime = leg.arrivalTime ? new Date(leg.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
@@ -395,9 +351,9 @@ export class PlannerPanel {
 
     createLegStep(step) {
         const instruction = (step.navigationInstruction ? step.navigationInstruction.instructions : null) || 
-                            (step.travelMode === 'WALK' ? 'Marcher' : 'Continuer'); // ✅ CORRECTION
+                            (step.travelMode === 'WALK' ? 'Marcher' : 'Continuer'); 
 
-        if (!instruction || instruction === 'undefined') { // ✅ CORRECTION
+        if (!instruction || instruction === 'undefined') { 
             return null;
         }
         
@@ -405,7 +361,7 @@ export class PlannerPanel {
         el.className = 'itinerary-leg';
         el.dataset.mode = step.travelMode;
 
-        const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1) || 0)); // ✅ CORRECTION
+        const legDuration = this.dataManager.formatDuration(parseInt(step.staticDuration.slice(0, -1) || 0)); 
         
         const startTime = step.departureTime ? new Date(step.departureTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
         const endTime = step.arrivalTime ? new Date(step.arrivalTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
@@ -428,8 +384,8 @@ export class PlannerPanel {
             
             if (transit && transit.line) {
                 const line = transit.line;
-                const routeColor = line.color || '#3388ff'; // ✅ CORRECTION
-                const textColor = line.textColor || this.getContrastColor(routeColor); // ✅ CORRECTION
+                const routeColor = `#${line.color}` || '#3388ff';
+                const textColor = `#${line.textColor}` || this.getContrastColor(routeColor);
                 
                 iconStyle = `style="background-color: ${routeColor}; color: ${textColor};"`;
 
