@@ -94,34 +94,52 @@ export class PlannerPanel {
         this.toAutocompleteElement.strictBounds = true;
         this.toAutocompleteElement.componentRestrictions = { country: 'fr' };
 
-        // Écouteur pour le champ DÉPART
-        this.fromAutocompleteElement.addEventListener('gmp-placechange', async () => {
-            const place = this.fromAutocompleteElement.place;
+        // Écouteur pour le champ DÉPART - Multiple événements pour compatibilité
+        const handleFromPlaceSelect = async (event) => {
+            console.log("🎯 Événement départ détecté:", event.type);
+            
+            // Essayer d'obtenir le lieu depuis différentes sources
+            let place = event.place || event.detail?.place || this.fromAutocompleteElement.place;
+            
+            console.log("📍 Place objet:", place);
             
             if (!place) {
+                console.warn("⚠️ Aucun lieu trouvé dans l'événement");
                 this.fromCoords = null;
                 return;
             }
 
             try {
-                if (!place.geometry) {
-                    await place.fetchFields({ fields: ['name', 'geometry', 'formattedAddress'] });
-                }
-
-                if (place.geometry && place.geometry.location) {
-                    this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
+                // Vérifier si on a déjà la location
+                if (place.location) {
+                    this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
+                    console.log("✅ Départ sauvegardé (direct):", this.fromCoords);
                 } else {
-                    this.fromCoords = null;
+                    // Sinon, récupérer les détails
+                    await place.fetchFields({ fields: ['location', 'displayName', 'formattedAddress'] });
+                    
+                    if (place.location) {
+                        this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
+                        console.log("✅ Départ sauvegardé (après fetch):", this.fromCoords);
+                    } else {
+                        console.error("❌ Pas de location trouvée après fetch");
+                        this.fromCoords = null;
+                    }
                 }
             } catch (error) {
-                console.error("Erreur lors de la récupération du lieu de départ:", error);
+                console.error("❌ Erreur lors de la récupération du lieu de départ:", error);
                 this.fromCoords = null;
             }
-        });
+        };
+        
+        // Écouter plusieurs événements possibles
+        this.fromAutocompleteElement.addEventListener('gmp-placeselect', handleFromPlaceSelect);
+        this.fromAutocompleteElement.addEventListener('place_changed', handleFromPlaceSelect);
+        this.fromAutocompleteElement.addEventListener('gmpplaceselect', handleFromPlaceSelect);
         
         // Écouteur pour le champ ARRIVÉE
-        this.toAutocompleteElement.addEventListener('gmp-placechange', async () => {
-            const place = this.toAutocompleteElement.place;
+        this.toAutocompleteElement.addEventListener('gmp-placeselect', async (event) => {
+            const place = event.place;
 
             if (!place) {
                 this.toCoords = null;
@@ -129,12 +147,12 @@ export class PlannerPanel {
             }
 
             try {
-                if (!place.geometry) {
-                    await place.fetchFields({ fields: ['name', 'geometry', 'formattedAddress'] });
-                }
+                // Récupérer les détails du lieu
+                await place.fetchFields({ fields: ['location', 'displayName'] });
                 
-                if (place.geometry && place.geometry.location) {
-                    this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
+                if (place.location) {
+                    this.toCoords = `${place.location.lat()},${place.location.lng()}`;
+                    console.log("✅ Arrivée sélectionnée:", place.displayName, this.toCoords);
                 } else {
                     this.toCoords = null;
                 }
@@ -185,7 +203,15 @@ export class PlannerPanel {
             const date = this.dateInput.value;
             const time = this.timeInput.value;
 
+            // ✅ AJOUT : Logs de debug
+            console.log("🔍 Recherche d'itinéraire:");
+            console.log("  - Départ (fromCoords):", from);
+            console.log("  - Arrivée (toCoords):", to);
+            console.log("  - Date:", date);
+            console.log("  - Heure:", time);
+
             if (!from || !to) {
+                console.error("❌ Coordonnées manquantes!");
                 this.showError("Veuillez sélectionner un lieu de départ et d'arrivée valides dans les suggestions.");
                 return;
             }
@@ -202,6 +228,7 @@ export class PlannerPanel {
                 dateTime: isoDateTime
             };
             
+            console.log("✅ Options envoyées:", options);
             this.showLoading("Calcul de l'itinéraire...");
             this.searchCallback(options); 
         });
