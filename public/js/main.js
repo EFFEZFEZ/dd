@@ -1,3 +1,65 @@
+/* 
+ * AJOUTÉ : "Monkey-Patch" pour le style de <gmp-place-autocomplete> 
+ * Ce code est un "hack" nécessaire car Google utilise un Shadow DOM "fermé",
+ * ce qui empêche les styles de style.css de l'affecter (y compris votre règle ::part).
+ * Il doit s'exécuter en PREMIER.
+ */
+try {
+  const attachShadow = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function (init) {
+    // Intercepter uniquement le composant d'autocomplétion
+    if (this.localName === "gmp-place-autocomplete") {
+      
+      // Forcer le mode "open" pour permettre l'injection de style
+      const shadow = attachShadow.call(this, {...init, mode: "open" });
+      
+      // Créer et injecter notre balise de style personnalisée
+      const style = document.createElement("style");
+      style.textContent = `
+        /* Styles internes pour forcer le thème clair  */
+      .widget-container { 
+          border: none!important; 
+        }
+      .input-container { 
+          padding: 0px!important; 
+        }
+      .focus-ring { 
+          display: none!important; /* Supprimer l'anneau de focus bleu */
+        }
+        /* C'est le correctif principal pour "c'est noir" */
+      .place-autocomplete-element-text-div {
+          background-color: var(--bg-main, #ffffff)!important;
+          color: var(--text-primary, #0f172a)!important;
+        }
+      .place-autocomplete-element-input {
+          /* Applique vos styles d'input existants depuis style.css */
+          width: 100%;
+          padding: 0.6rem 0.75rem;
+          border: 1px solid var(--border, #e2e8f0);
+          border-radius: var(--radius-md, 8px);
+          font-size: 0.875rem;
+          font-family: inherit;
+          background-color: transparent!important;
+          color: inherit!important;
+        }
+        /* Style l'état :focus (copié depuis votre style.css) */
+      .place-autocomplete-element-input:focus {
+          border-color: var(--primary, #2563eb);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+          outline: none;
+        }
+      `;
+      shadow.appendChild(style);
+      return shadow;
+    } else {
+      // Laisser les autres éléments se comporter normalement
+      return attachShadow.call(this, init);
+    }
+  };
+} catch (error) {
+  console.warn('Échec du monkey-patch pour le style d\'autocomplétion.', error);
+}
+
 /**
  * main.js
  *
@@ -35,10 +97,10 @@ let isPlannerMode = false;
 
 // (Toute la section LINE_CATEGORIES et getCategoryForRoute reste identique)
 const LINE_CATEGORIES = {
-    'majeures': { name: 'Lignes majeures', lines: ['A', 'B', 'C', 'D'], color: '#2563eb' },
+    'majeures': { name: 'Lignes majeures', lines:, color: '#2563eb' },
     'express': { name: 'Lignes express', lines: ['e1', 'e2', 'e4', 'e5', 'e6', 'e7'], color: '#dc2626' },
-    'quartier': { name: 'Lignes de quartier', lines: ['K1A', 'K1B', 'K2', 'K3A', 'K3B', 'K4A', 'K4B', 'K5', 'K6'], color: '#059669' },
-    'rabattement': { name: 'Lignes de rabattement', lines: ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8', 'R9', 'R10', 'R11', 'R12', 'R13', 'R14', 'R15'], color: '#7c3aed' },
+    'quartier': { name: 'Lignes de quartier', lines:, color: '#059669' },
+    'rabattement': { name: 'Lignes de rabattement', lines:, color: '#7c3aed' },
     'navettes': { name: 'Navettes', lines: ['N', 'N1'], color: '#f59e0b' }
 };
 function getCategoryForRoute(routeShortName) {
@@ -84,7 +146,7 @@ async function initializeApp() {
         setupEventListeners();
 
         const instructionsPanel = document.getElementById('instructions');
-        if (instructionsPanel && localStorage.getItem('gtfsInstructionsShown') !== 'true') {
+        if (instructionsPanel && localStorage.getItem('gtfsInstructionsShown')!== 'true') {
             instructionsPanel.classList.remove('hidden');
         }
 
@@ -119,8 +181,8 @@ function initializeRouteFilter() {
     routeCheckboxesContainer.innerHTML = '';
     visibleRoutes.clear();
     const routesByCategory = {};
-    Object.keys(LINE_CATEGORIES).forEach(cat => routesByCategory[cat] = []);
-    routesByCategory['autres'] = [];
+    Object.keys(LINE_CATEGORIES).forEach(cat => routesByCategory[cat] =);
+    routesByCategory['autres'] =;
     dataManager.routes.forEach(route => {
         visibleRoutes.add(route.route_id);
         const category = getCategoryForRoute(route.route_short_name);
@@ -130,8 +192,8 @@ function initializeRouteFilter() {
         routes.sort((a, b) => {
             const nameA = a.route_short_name;
             const nameB = b.route_short_name;
-            const isRLineA = nameA.startsWith('R') && !isNaN(parseInt(nameA.substring(1)));
-            const isRLineB = nameB.startsWith('R') && !isNaN(parseInt(nameB.substring(1)));
+            const isRLineA = nameA.startsWith('R') &&!isNaN(parseInt(nameA.substring(1)));
+            const isRLineB = nameB.startsWith('R') &&!isNaN(parseInt(nameB.substring(1)));
             if (isRLineA && isRLineB) return parseInt(nameA.substring(1)) - parseInt(nameB.substring(1));
             return nameA.localeCompare(nameB);
         });
@@ -165,16 +227,21 @@ function initializeRouteFilter() {
             checkbox.checked = true;
             checkbox.dataset.category = categoryId;
             checkbox.addEventListener('change', () => handleRouteFilterChange());
-            const routeColor = route.route_color ? `#${route.route_color}` : '#3388ff';
-            const textColor = route.route_text_color ? `#${route.route_text_color}` : '#ffffff';
+            const routeColor = route.route_color? `#${route.route_color}` : '#3388ff';
+            const textColor = route.route_text_color? `#${route.route_text_color}` : '#ffffff';
             const badge = document.createElement('div');
             badge.className = 'route-badge';
             badge.style.backgroundColor = routeColor;
             badge.style.color = textColor;
-            badge.textContent = route.route_short_name || route.route_id;
+            badge.textContent = route.route_short_name |
+
+| route.route_id;
             const label = document.createElement('span');
             label.className = 'route-name';
-            label.textContent = route.route_long_name || route.route_short_name || route.route_id;
+            label.textContent = route.route_long_name |
+
+| route.route_short_name |
+| route.route_id;
             itemDiv.appendChild(checkbox);
             itemDiv.appendChild(badge);
             itemDiv.appendChild(label);
@@ -295,7 +362,7 @@ function setupEventListeners() {
     
     if (mapRenderer && mapRenderer.map) {
         mapRenderer.map.on('zoomend', () => {
-            if (dataManager && !isPlannerMode) {
+            if (dataManager &&!isPlannerMode) {
                 mapRenderer.displayStops();
             }
         });
@@ -312,8 +379,8 @@ function handleSearchInput(e) {
         return;
     }
     const matches = dataManager.masterStops
-        .filter(stop => stop.stop_name.toLowerCase().includes(query))
-        .slice(0, 10);
+       .filter(stop => stop.stop_name.toLowerCase().includes(query))
+       .slice(0, 10);
     displaySearchResults(matches, query);
 }
 function displaySearchResults(stops, query) {
@@ -375,18 +442,18 @@ async function handleItineraryRequest(options) {
             return;
         }
 
-        const route = itineraryData.routes[0];
-        const leg = route.legs[0];
+        const route = itineraryData.routes;
+        const leg = route.legs;
 
         mapRenderer.clearAllRoutes();
         mapRenderer.hideBusMarkers();
         mapRenderer.clearStops();
         mapRenderer.clearItinerary();
 
-        const allCoords = [];
+        const allCoords =;
 
         leg.steps.forEach(step => {
-            if (!step || !step.polyline || !step.polyline.encodedPolyline) {
+            if (!step ||!step.polyline ||!step.polyline.encodedPolyline) {
                 console.warn("Étape d'itinéraire ignorée (manque polyligne):", step);
                 return;
             }
@@ -415,19 +482,19 @@ async function handleItineraryRequest(options) {
         L.marker(startPoint, {
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
-            .addTo(mapRenderer.itineraryLayer)
-            .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
+           .addTo(mapRenderer.itineraryLayer)
+           .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
 
         const endPoint = [leg.endLocation.latLng.latitude, leg.endLocation.latLng.longitude];
         L.marker(endPoint, {
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
-            .addTo(mapRenderer.itineraryLayer)
-            .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
+           .addTo(mapRenderer.itineraryLayer)
+           .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
 
         if (allCoords.length > 0) {
             const bounds = L.latLngBounds(allCoords);
-            mapRenderer.map.fitBounds(bounds, { padding: [50, 50] });
+            mapRenderer.map.fitBounds(bounds, { padding:  });
         }
 
         plannerPanel.displayItinerary(itineraryData);
@@ -435,7 +502,9 @@ async function handleItineraryRequest(options) {
     } catch (error) {
         // Conforme à la recommandation 4.2
         console.error("Erreur lors de la recherche d'itinéraire:", error);
-        plannerPanel.showError(error.message || "Erreur de connexion au service d'itinéraire.");
+        plannerPanel.showError(error.message |
+
+| "Erreur de connexion au service d'itinéraire.");
         isPlannerMode = false;
 
         // On ne cache pas le 'loading' ici, 'showError' le fait déjà.
@@ -445,21 +514,21 @@ async function handleItineraryRequest(options) {
 // (updateData reste identique)
 function updateData(timeInfo) {
     if (isPlannerMode) {
-        const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
+        const currentSeconds = timeInfo? timeInfo.seconds : timeManager.getCurrentSeconds();
         updateClock(currentSeconds);
         return;
     }
 
-    const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
-    const currentDate = timeInfo ? timeInfo.date : timeManager.getCurrentDate();
+    const currentSeconds = timeInfo? timeInfo.seconds : timeManager.getCurrentSeconds();
+    const currentDate = timeInfo? timeInfo.date : timeManager.getCurrentDate();
 
     updateClock(currentSeconds);
 
     const activeBuses = tripScheduler.getActiveTrips(currentSeconds, currentDate);
 
     const busesWithPositions = busPositionCalculator.calculateAllPositions(activeBuses)
-        .filter(bus => bus !== null)
-        .filter(bus => bus.route && visibleRoutes.has(bus.route.route_id));
+       .filter(bus => bus!== null)
+       .filter(bus => bus.route && visibleRoutes.has(bus.route.route_id));
 
     mapRenderer.updateBusMarkers(busesWithPositions, tripScheduler, currentSeconds);
 
