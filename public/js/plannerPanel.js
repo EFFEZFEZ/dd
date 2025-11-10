@@ -9,78 +9,127 @@ class PlannerPanel extends HTMLElement {
     this.attachShadow({ mode: 'open' }); // Utilisation d'un Shadow DOM
 
     // États internes
-    this.fromCoords = null;
-    this.toCoords = null;
-    this.onItineraryRequest = null; // Callback pour main.js
+    this.fromPlace = null;
+    this.toPlace = null;
+    this.onItineraryRequest = null; // Callback pour main.js 
+    this.mode = 'departure'; // 'departure' ou 'arrival'
 
-    // Le HTML du composant, basé sur la capture d'écran
+    // Le HTML du composant, basé sur la capture d'écran et la structure de l'application
     this.shadowRoot.innerHTML = `
       <style>
+        /* Styles encapsulés pour le panneau de planification */
         :host {
           display: block;
-          padding: 1rem;
-          background-color: #ffffff;
+          width: 100%;
+          background-color: var(--bg-panel, #f8fafc);
+          border-top: 1px solid var(--border, #e2e8f0);
         }
-       .planner-container {
+       .planner-wrapper {
+          padding: 1rem;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 1rem;
         }
+       .input-group {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+        
+        /* Styles pour les onglets Partir / Arriver */
+       .tabs {
+          display: flex;
+          border-bottom: 1px solid var(--border, #e2e8f0);
+        }
+       .tab-button {
+          flex: 1;
+          padding: 0.75rem 0.5rem;
+          background: none;
+          border: none;
+          border-bottom: 3px solid transparent;
+          cursor: pointer;
+          font-size: 0.9rem;
+          font-weight: 500;
+          color: var(--text-secondary, #64748b);
+        }
+       .tab-button.active {
+          color: var(--text-primary, #0f172a);
+          border-bottom-color: var(--accent-color, #3b82f6);
+        }
+        
        .time-inputs {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 10px;
+          gap: 0.75rem;
+        }
+       .time-inputs div {
+          display: flex;
+          flex-direction: column;
         }
        .time-inputs label {
           font-size: 0.75rem;
-          color: #64748b;
+          color: var(--text-secondary, #64748b);
+          margin-bottom: 0.25rem;
         }
-       .time-inputs input {
+       .time-inputs input[type="date"],
+       .time-inputs input[type="time"] {
           width: 100%;
-          padding: 8px;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          box-sizing: border-box; /* Assure que le padding ne casse pas la largeur */
+          padding: 0.5rem;
+          border: 1px solid var(--border, #e2e8f0);
+          border-radius: 6px;
+          font-family: inherit;
+          font-size: 0.875rem;
+          box-sizing: border-box; /* Important */
         }
+        
         #calculate-route-btn {
-          background-color: #3b82f6; /* Bleu */
+          background-color: var(--accent-color, #3b82f6);
           color: white;
           border: none;
-          padding: 12px;
+          padding: 0.75rem;
           border-radius: 8px;
           font-size: 1rem;
           font-weight: 500;
           cursor: pointer;
+          transition: background-color 0.2s ease;
         }
         #calculate-route-btn:hover {
-          background-color: #2563eb;
+          background-color: var(--accent-color-dark, #2563eb);
         }
-        /* Style pour les composants Google (qui seront stylisés par les correctifs) */
+
+        /* Style pour les composants Google (qui seront stylisés par les correctifs CSS) */
         gmp-place-autocomplete {
           width: 100%;
           box-sizing: border-box;
         }
       </style>
       
-      <div class="planner-container">
-        <gmp-place-autocomplete
-          id="from-autocomplete"
-          placeholder="Point de départ">
-        </gmp-place-autocomplete>
-        
-        <gmp-place-autocomplete
-          id="to-autocomplete"
-          placeholder="Point d'arrivée">
-        </gmp-place-autocomplete>
+      <div class="planner-wrapper">
+        <div class="input-group">
+          <gmp-place-autocomplete
+            id="from-autocomplete"
+            placeholder="Point de départ">
+          </gmp-place-autocomplete>
+          
+          <gmp-place-autocomplete
+            id="to-autocomplete"
+            placeholder="Point d'arrivée">
+          </gmp-place-autocomplete>
+        </div>
+
+        <div class="tabs">
+          <button id="tab-departure" class="tab-button active">Partir</button>
+          <button id="tab-arrival" class="tab-button">Arriver</button>
+        </div>
 
         <div class="time-inputs">
           <div>
             <label for="date-picker">Date du trajet</label>
-            <input type="date" id="date-picker">
+            <input type="date" id="date-picker" aria-label="Date du trajet">
           </div>
           <div>
-            <label for="time-picker">Heure</label>
-            <input type="time" id="time-picker">
+            <label for="time-picker" id="time-picker-label">Heure</label>
+            <input type="time" id="time-picker" aria-label="Heure du trajet">
           </div>
         </div>
         
@@ -93,10 +142,10 @@ class PlannerPanel extends HTMLElement {
    * Fonction de cycle de vie appelée lorsque le composant est connecté au DOM.
    */
   async connectedCallback() {
-    // Étape 1 : Importer la bibliothèque Google Maps 'core' 
+    // MODIFIÉ : Étape 1 - Importer la bibliothèque Google Maps 'core' 
     const { LatLngBounds } = await google.maps.importLibrary("core");
 
-    // Étape 2 : Définir la zone de délimitation de la Dordogne [3]
+    // MODIFIÉ : Étape 2 - Définir la zone de délimitation de la Dordogne 
     const dordogneBounds = new LatLngBounds(
       { lat: 44.53, lng: -0.13 }, // Sud-Ouest
       { lat: 45.75, lng: 1.50 }  // Nord-Est
@@ -108,20 +157,23 @@ class PlannerPanel extends HTMLElement {
     const datePicker = this.shadowRoot.querySelector('#date-picker');
     const timePicker = this.shadowRoot.querySelector('#time-picker');
     const calculateBtn = this.shadowRoot.querySelector('#calculate-route-btn');
+    const tabDeparture = this.shadowRoot.querySelector('#tab-departure');
+    const tabArrival = this.shadowRoot.querySelector('#tab-arrival');
+    const timePickerLabel = this.shadowRoot.querySelector('#time-picker-label');
 
     // Initialiser la date et l'heure par défaut
     this.initializeDateTime(datePicker, timePicker);
 
-    // Étape 3 : Appliquer les restrictions géographiques [2, 5, 4]
+    // MODIFIÉ : Étape 3 - Appliquer les restrictions géographiques [3, 5, 4]
     if (fromAutocomplete) {
       fromAutocomplete.locationRestriction = dordogneBounds;
-      fromAutocomplete.strictBounds = true;
-      fromAutocomplete.componentRestrictions = { country: 'fr' };
+      fromAutocomplete.strictBounds = true; // Ne montrer que les résultats dans la zone 
+      fromAutocomplete.componentRestrictions = { country: 'fr' }; // Restreindre à la France 
     }
     if (toAutocomplete) {
       toAutocomplete.locationRestriction = dordogneBounds;
-      toAutocomplete.strictBounds = true;
-      toAutocomplete.componentRestrictions = { country: 'fr' };
+      toAutocomplete.strictBounds = true; // Ne montrer que les résultats dans la zone 
+      toAutocomplete.componentRestrictions = { country: 'fr' }; // Restreindre à la France 
     }
 
     // Étape 4 : Ajouter les écouteurs d'événements 
@@ -129,9 +181,9 @@ class PlannerPanel extends HTMLElement {
       const place = event.place;
       await place.fetchFields({ fields: ['geometry', 'formattedAddress'] });
       if (place.geometry) {
-        this.fromCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
+        this.fromPlace = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
       } else {
-        this.fromCoords = null;
+        this.fromPlace = null;
       }
     });
 
@@ -139,28 +191,56 @@ class PlannerPanel extends HTMLElement {
       const place = event.place;
       await place.fetchFields({ fields: ['geometry', 'formattedAddress'] });
       if (place.geometry) {
-        this.toCoords = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
+        this.toPlace = `${place.geometry.location.lat()},${place.geometry.location.lng()}`;
       } else {
-        this.toCoords = null;
+        this.toPlace = null;
       }
+    });
+
+    // Écouteurs pour les onglets (basé sur la capture d'écran)
+    tabDeparture.addEventListener('click', () => {
+      this.mode = 'departure';
+      tabDeparture.classList.add('active');
+      tabArrival.classList.remove('active');
+      timePickerLabel.textContent = 'Heure de départ';
+    });
+    
+    tabArrival.addEventListener('click', () => {
+      this.mode = 'arrival';
+      tabArrival.classList.add('active');
+      tabDeparture.classList.remove('active');
+      timePickerLabel.textContent = 'Heure d\'arrivée';
     });
 
     // Écouteur pour le bouton de calcul
     calculateBtn.addEventListener('click', () => {
-      if (this.fromCoords && this.toCoords && this.onItineraryRequest) {
-        
-        // Formater l'heure de départ
-        const departureDateTime = this.getDepartureTime(datePicker, timePicker);
-
-        // Appelle le callback de main.js 
-        this.onItineraryRequest({
-          from: this.fromCoords,
-          to: this.toCoords,
-          departure_time: departureDateTime
-        });
-      } else {
+      if (!this.fromPlace ||!this.toPlace) {
         alert('Veuillez sélectionner un point de départ et d\'arrivée valides.');
+        return;
       }
+      
+      if (!this.onItineraryRequest) {
+        console.error('Callback onItineraryRequest non défini.');
+        return;
+      }
+
+      // Formater l'heure
+      const isoDateTime = this.getIsoDateTime(datePicker, timePicker);
+      const options = {
+        from: this.fromPlace,
+        to: this.toPlace,
+        departure_time: null,
+        arrival_time: null
+      };
+      
+      if (this.mode === 'departure') {
+        options.departure_time = isoDateTime;
+      } else {
+        options.arrival_time = isoDateTime;
+      }
+
+      // Appelle le callback de main.js 
+      this.onItineraryRequest(options);
     });
   }
 
@@ -169,25 +249,35 @@ class PlannerPanel extends HTMLElement {
    */
   initializeDateTime(dateEl, timeEl) {
     const now = new Date();
+    // Ajoute quelques minutes pour un départ réaliste
+    now.setMinutes(now.getMinutes() + 5); 
+
     // Formater la date en YYYY-MM-DD
-    dateEl.value = now.toISOString().split('T');
+    const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+                        .toISOString()
+                        .split('T');
+    dateEl.value = localDate;
+    
     // Formater l'heure en HH:MM
-    timeEl.value = now.toTimeString().split(' ').substring(0, 5);
+    const localTime = now.toTimeString().split(' ').substring(0, 5);
+    timeEl.value = localTime;
   }
 
   /**
-   * Combine la date et l'heure en une chaîne ISO 8601.
+   * Combine la date et l'heure en une chaîne ISO 8601 UTC.
    * @returns {string} Chaîne ISO (ex: "2025-11-10T01:01:00.000Z")
    */
-  getDepartureTime(dateEl, timeEl) {
+  getIsoDateTime(dateEl, timeEl) {
     try {
       const date = dateEl.value;
       const time = timeEl.value;
       if (!date ||!time) {
         return new Date().toISOString(); // Fallback
       }
+      // Crée une date en utilisant les valeurs locales et la convertit en ISO UTC
       const dateTimeString = `${date}T${time}:00`;
-      return new Date(dateTimeString).toISOString();
+      const localDateTime = new Date(dateTimeString);
+      return localDateTime.toISOString();
     } catch (e) {
       console.error("Erreur de formatage de date:", e);
       return new Date().toISOString(); // Fallback en cas d'erreur
