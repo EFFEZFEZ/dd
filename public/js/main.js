@@ -16,37 +16,72 @@ try {
       // Créer et injecter notre balise de style personnalisée
       const style = document.createElement("style");
       style.textContent = `
-        /* Styles internes pour forcer le thème clair  */
-      .widget-container { 
-          border: none!important; 
+        /* Styles internes pour forcer le thème clair */
+        :host {
+          display: block;
         }
-      .input-container { 
-          padding: 0px!important; 
+        
+        * {
+          box-sizing: border-box;
         }
-      .focus-ring { 
-          display: none!important; /* Supprimer l'anneau de focus bleu */
+        
+        .widget-container { 
+          border: none !important; 
+          background: transparent !important;
         }
-        /* C'est le correctif principal pour "c'est noir" */
-      .place-autocomplete-element-text-div {
-          background-color: var(--bg-main, #ffffff)!important;
-          color: var(--text-primary, #0f172a)!important;
+        
+        .input-container { 
+          padding: 0px !important;
+          background: transparent !important;
         }
-      .place-autocomplete-element-input {
-          /* Applique vos styles d'input existants depuis style.css */
+        
+        .focus-ring { 
+          display: none !important;
+        }
+        
+        /* Correctif principal pour le fond noir */
+        .place-autocomplete-element-text-div,
+        .pac-container {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+        }
+        
+        /* Style de l'input principal */
+        .place-autocomplete-element-input,
+        input {
           width: 100%;
           padding: 0.6rem 0.75rem;
-          border: 1px solid var(--border, #e2e8f0);
-          border-radius: var(--radius-md, 8px);
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
           font-size: 0.875rem;
           font-family: inherit;
-          background-color: transparent!important;
-          color: inherit!important;
+          background-color: #ffffff !important;
+          color: #0f172a !important;
         }
-        /* Style l'état :focus (copié depuis votre style.css) */
-      .place-autocomplete-element-input:focus {
-          border-color: var(--primary, #2563eb);
+        
+        /* État focus */
+        .place-autocomplete-element-input:focus,
+        input:focus {
+          border-color: #2563eb;
           box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
           outline: none;
+          background-color: #ffffff !important;
+        }
+        
+        /* Suggestions dropdown */
+        .pac-item {
+          background-color: #ffffff !important;
+          color: #0f172a !important;
+          padding: 0.5rem;
+          cursor: pointer;
+        }
+        
+        .pac-item:hover {
+          background-color: #f1f5f9 !important;
+        }
+        
+        .pac-item-query {
+          color: #0f172a !important;
         }
       `;
       shadow.appendChild(style);
