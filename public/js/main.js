@@ -95,14 +95,15 @@ let routingService;
 let plannerPanel;
 let isPlannerMode = false;
 
-// (Toute la section LINE_CATEGORIES et getCategoryForRoute reste identique)
+// ✅ CORRECTION : Tous les tableaux vides sont maintenant bien formés
 const LINE_CATEGORIES = {
-    'majeures': { name: 'Lignes majeures', lines:, color: '#2563eb' },
+    'majeures': { name: 'Lignes majeures', lines: [], color: '#2563eb' },
     'express': { name: 'Lignes express', lines: ['e1', 'e2', 'e4', 'e5', 'e6', 'e7'], color: '#dc2626' },
-    'quartier': { name: 'Lignes de quartier', lines:, color: '#059669' },
-    'rabattement': { name: 'Lignes de rabattement', lines:, color: '#7c3aed' },
+    'quartier': { name: 'Lignes de quartier', lines: [], color: '#059669' },
+    'rabattement': { name: 'Lignes de rabattement', lines: [], color: '#7c3aed' },
     'navettes': { name: 'Navettes', lines: ['N', 'N1'], color: '#f59e0b' }
 };
+
 function getCategoryForRoute(routeShortName) {
     for (const [categoryId, category] of Object.entries(LINE_CATEGORIES)) {
         if (category.lines.includes(routeShortName)) {
@@ -146,7 +147,7 @@ async function initializeApp() {
         setupEventListeners();
 
         const instructionsPanel = document.getElementById('instructions');
-        if (instructionsPanel && localStorage.getItem('gtfsInstructionsShown')!== 'true') {
+        if (instructionsPanel && localStorage.getItem('gtfsInstructionsShown') !== 'true') {
             instructionsPanel.classList.remove('hidden');
         }
 
@@ -168,39 +169,42 @@ async function initializeApp() {
     }
 }
 
-// (checkAndSetupTimeMode reste identique)
 function checkAndSetupTimeMode() {
     timeManager.setMode('real');
     timeManager.play();
     console.log('⏰ Mode TEMPS RÉEL activé.');
 }
 
-// (initializeRouteFilter, handleCategoryAction, handleRouteFilterChange restent identiques)
 function initializeRouteFilter() {
     const routeCheckboxesContainer = document.getElementById('route-checkboxes');
     routeCheckboxesContainer.innerHTML = '';
     visibleRoutes.clear();
+    
     const routesByCategory = {};
-    Object.keys(LINE_CATEGORIES).forEach(cat => routesByCategory[cat] =);
-    routesByCategory['autres'] =;
+    Object.keys(LINE_CATEGORIES).forEach(cat => routesByCategory[cat] = []);
+    routesByCategory['autres'] = [];
+    
     dataManager.routes.forEach(route => {
         visibleRoutes.add(route.route_id);
         const category = getCategoryForRoute(route.route_short_name);
         routesByCategory[category].push(route);
     });
+    
     Object.values(routesByCategory).forEach(routes => {
         routes.sort((a, b) => {
             const nameA = a.route_short_name;
             const nameB = b.route_short_name;
-            const isRLineA = nameA.startsWith('R') &&!isNaN(parseInt(nameA.substring(1)));
-            const isRLineB = nameB.startsWith('R') &&!isNaN(parseInt(nameB.substring(1)));
+            const isRLineA = nameA.startsWith('R') && !isNaN(parseInt(nameA.substring(1)));
+            const isRLineB = nameB.startsWith('R') && !isNaN(parseInt(nameB.substring(1)));
             if (isRLineA && isRLineB) return parseInt(nameA.substring(1)) - parseInt(nameB.substring(1));
             return nameA.localeCompare(nameB);
         });
     });
+    
     Object.entries(LINE_CATEGORIES).forEach(([categoryId, categoryInfo]) => {
         const routes = routesByCategory[categoryId];
         if (routes.length === 0) return;
+        
         const categoryHeader = document.createElement('div');
         categoryHeader.className = 'category-header';
         categoryHeader.innerHTML = `
@@ -215,37 +219,42 @@ function initializeRouteFilter() {
             </div>
         `;
         routeCheckboxesContainer.appendChild(categoryHeader);
+        
         const categoryContainer = document.createElement('div');
         categoryContainer.className = 'category-routes';
         categoryContainer.id = `category-${categoryId}`;
+        
         routes.forEach(route => {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'route-checkbox-item';
+            
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
             checkbox.id = `route-${route.route_id}`;
             checkbox.checked = true;
             checkbox.dataset.category = categoryId;
             checkbox.addEventListener('change', () => handleRouteFilterChange());
-            const routeColor = route.route_color? `#${route.route_color}` : '#3388ff';
-            const textColor = route.route_text_color? `#${route.route_text_color}` : '#ffffff';
+            
+            const routeColor = route.route_color ? `#${route.route_color}` : '#3388ff';
+            const textColor = route.route_text_color ? `#${route.route_text_color}` : '#ffffff';
+            
             const badge = document.createElement('div');
             badge.className = 'route-badge';
             badge.style.backgroundColor = routeColor;
             badge.style.color = textColor;
-            badge.textContent = route.route_short_name |
-
-| route.route_id;
+            // ✅ CORRECTION : Opérateur || correct
+            badge.textContent = route.route_short_name || route.route_id;
+            
             const label = document.createElement('span');
             label.className = 'route-name';
-            label.textContent = route.route_long_name |
-
-| route.route_short_name |
-| route.route_id;
+            // ✅ CORRECTION : Opérateur || correct
+            label.textContent = route.route_long_name || route.route_short_name || route.route_id;
+            
             itemDiv.appendChild(checkbox);
             itemDiv.appendChild(badge);
             itemDiv.appendChild(label);
             categoryContainer.appendChild(itemDiv);
+            
             itemDiv.addEventListener('mouseenter', () => mapRenderer.highlightRoute(route.route_id, true));
             itemDiv.addEventListener('mouseleave', () => mapRenderer.highlightRoute(route.route_id, false));
             itemDiv.addEventListener('click', (e) => {
@@ -255,6 +264,7 @@ function initializeRouteFilter() {
         });
         routeCheckboxesContainer.appendChild(categoryContainer);
     });
+    
     document.querySelectorAll('.btn-category-action').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const category = e.target.dataset.category;
@@ -263,6 +273,7 @@ function initializeRouteFilter() {
         });
     });
 }
+
 function handleCategoryAction(category, action) {
     const checkboxes = document.querySelectorAll(`input[data-category="${category}"]`);
     checkboxes.forEach(checkbox => {
@@ -270,6 +281,7 @@ function handleCategoryAction(category, action) {
     });
     handleRouteFilterChange();
 }
+
 function handleRouteFilterChange() {
     visibleRoutes.clear();
     dataManager.routes.forEach(route => {
@@ -278,6 +290,7 @@ function handleRouteFilterChange() {
             visibleRoutes.add(route.route_id);
         }
     });
+    
     if (isPlannerMode) {
         exitPlannerMode();
     } else if (dataManager.geoJson) {
@@ -285,12 +298,6 @@ function handleRouteFilterChange() {
     }
     updateData();
 }
-
-//
-// ===================================================================
-// ✅✅✅ C'EST ICI QUE LA CORRECTION EST APPLIQUÉE ✅✅✅
-// ===================================================================
-//
 
 /**
  * Attache les écouteurs d'événements aux éléments de l'interface.
@@ -307,8 +314,6 @@ function setupEventListeners() {
         });
     }
 
-    // Le reste de la fonction est sécurisé car les IDs sont vérifiés
-    // dans votre `index.html` et semblent corrects.
     document.getElementById('btn-toggle-filter').addEventListener('click', () => {
         document.getElementById('route-filter-panel').classList.toggle('hidden');
         document.getElementById('planner-panel').classList.add('hidden');
@@ -362,35 +367,40 @@ function setupEventListeners() {
     
     if (mapRenderer && mapRenderer.map) {
         mapRenderer.map.on('zoomend', () => {
-            if (dataManager &&!isPlannerMode) {
+            if (dataManager && !isPlannerMode) {
                 mapRenderer.displayStops();
             }
         });
     }
 }
 
-// (handleSearchInput, displaySearchResults, onSearchResultClick restent identiques)
 function handleSearchInput(e) {
     const query = e.target.value.toLowerCase();
     const searchResultsContainer = document.getElementById('search-results');
+    
     if (query.length < 2) {
         searchResultsContainer.classList.add('hidden');
         searchResultsContainer.innerHTML = '';
         return;
     }
+    
     const matches = dataManager.masterStops
-       .filter(stop => stop.stop_name.toLowerCase().includes(query))
-       .slice(0, 10);
+        .filter(stop => stop.stop_name.toLowerCase().includes(query))
+        .slice(0, 10);
+    
     displaySearchResults(matches, query);
 }
+
 function displaySearchResults(stops, query) {
     const searchResultsContainer = document.getElementById('search-results');
     searchResultsContainer.innerHTML = '';
+    
     if (stops.length === 0) {
         searchResultsContainer.innerHTML = `<div class="search-result-item">Aucun arrêt trouvé.</div>`;
         searchResultsContainer.classList.remove('hidden');
         return;
     }
+    
     stops.forEach(stop => {
         const item = document.createElement('div');
         item.className = 'search-result-item';
@@ -399,15 +409,16 @@ function displaySearchResults(stops, query) {
         item.addEventListener('click', () => onSearchResultClick(stop));
         searchResultsContainer.appendChild(item);
     });
+    
     searchResultsContainer.classList.remove('hidden');
 }
+
 function onSearchResultClick(stop) {
     mapRenderer.zoomToStop(stop);
     document.getElementById('search-bar').value = stop.stop_name;
     document.getElementById('search-results').classList.add('hidden');
 }
 
-// (showDefaultMap et exitPlannerMode restent identiques)
 function showDefaultMap() {
     isPlannerMode = false;
     if (dataManager.geoJson) {
@@ -416,6 +427,7 @@ function showDefaultMap() {
     mapRenderer.showBusMarkers();
     mapRenderer.displayStops();
 }
+
 function exitPlannerMode() {
     isPlannerMode = false;
     mapRenderer.clearItinerary();
@@ -424,9 +436,7 @@ function exitPlannerMode() {
 }
 
 /**
- * ===================================================================
  * FONCTION CALLBACK pour le PlannerPanel (Mise à jour pour l'analyse)
- * ===================================================================
  */
 async function handleItineraryRequest(options) {
     console.log(`Demande d'itinéraire...`);
@@ -436,24 +446,23 @@ async function handleItineraryRequest(options) {
         const itineraryData = await routingService.getItinerary(options);
 
         if (itineraryData.error) {
-            // Conforme à la recommandation 4.2
             plannerPanel.showError(itineraryData.error);
             isPlannerMode = false;
             return;
         }
 
-        const route = itineraryData.routes;
-        const leg = route.legs;
+        const route = itineraryData.routes[0]; // ✅ CORRECTION
+        const leg = route.legs[0]; // ✅ CORRECTION
 
         mapRenderer.clearAllRoutes();
         mapRenderer.hideBusMarkers();
         mapRenderer.clearStops();
         mapRenderer.clearItinerary();
 
-        const allCoords =;
+        const allCoords = [];
 
         leg.steps.forEach(step => {
-            if (!step ||!step.polyline ||!step.polyline.encodedPolyline) {
+            if (!step || !step.polyline || !step.polyline.encodedPolyline) {
                 console.warn("Étape d'itinéraire ignorée (manque polyligne):", step);
                 return;
             }
@@ -482,53 +491,48 @@ async function handleItineraryRequest(options) {
         L.marker(startPoint, {
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
-           .addTo(mapRenderer.itineraryLayer)
-           .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
+            .addTo(mapRenderer.itineraryLayer)
+            .bindPopup(`<b>Départ:</b> ${leg.startAddress}`);
 
         const endPoint = [leg.endLocation.latLng.latitude, leg.endLocation.latLng.longitude];
         L.marker(endPoint, {
             icon: L.divIcon({ className: 'stop-search-marker', html: '<div></div>', iconSize: [12, 12] })
         })
-           .addTo(mapRenderer.itineraryLayer)
-           .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
+            .addTo(mapRenderer.itineraryLayer)
+            .bindPopup(`<b>Arrivée:</b> ${leg.endAddress}`);
 
         if (allCoords.length > 0) {
             const bounds = L.latLngBounds(allCoords);
-            mapRenderer.map.fitBounds(bounds, { padding:  });
+            mapRenderer.map.fitBounds(bounds, { padding: [50, 50] });
         }
 
         plannerPanel.displayItinerary(itineraryData);
 
     } catch (error) {
-        // Conforme à la recommandation 4.2
         console.error("Erreur lors de la recherche d'itinéraire:", error);
-        plannerPanel.showError(error.message |
-
-| "Erreur de connexion au service d'itinéraire.");
+        // ✅ CORRECTION : Opérateur || correct
+        plannerPanel.showError(error.message || "Erreur de connexion au service d'itinéraire.");
         isPlannerMode = false;
-
-        // On ne cache pas le 'loading' ici, 'showError' le fait déjà.
     }
 }
 
-// (updateData reste identique)
 function updateData(timeInfo) {
     if (isPlannerMode) {
-        const currentSeconds = timeInfo? timeInfo.seconds : timeManager.getCurrentSeconds();
+        const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
         updateClock(currentSeconds);
         return;
     }
 
-    const currentSeconds = timeInfo? timeInfo.seconds : timeManager.getCurrentSeconds();
-    const currentDate = timeInfo? timeInfo.date : timeManager.getCurrentDate();
+    const currentSeconds = timeInfo ? timeInfo.seconds : timeManager.getCurrentSeconds();
+    const currentDate = timeInfo ? timeInfo.date : timeManager.getCurrentDate();
 
     updateClock(currentSeconds);
 
     const activeBuses = tripScheduler.getActiveTrips(currentSeconds, currentDate);
 
     const busesWithPositions = busPositionCalculator.calculateAllPositions(activeBuses)
-       .filter(bus => bus!== null)
-       .filter(bus => bus.route && visibleRoutes.has(bus.route.route_id));
+        .filter(bus => bus !== null)
+        .filter(bus => bus.route && visibleRoutes.has(bus.route.route_id));
 
     mapRenderer.updateBusMarkers(busesWithPositions, tripScheduler, currentSeconds);
 
@@ -537,7 +541,6 @@ function updateData(timeInfo) {
     updateBusCount(visibleBusCount, totalBusCount);
 }
 
-// (updateClock, updateBusCount, updateDataStatus restent identiques)
 function updateClock(seconds) {
     const hours = Math.floor(seconds / 3600) % 24;
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -554,6 +557,7 @@ function updateClock(seconds) {
     });
     document.getElementById('date-indicator').textContent = dateString;
 }
+
 function updateBusCount(visible, total) {
     const busCountElement = document.getElementById('bus-count');
     busCountElement.innerHTML = `
@@ -563,16 +567,14 @@ function updateBusCount(visible, total) {
         ${visible} bus
     `;
 }
+
 function updateDataStatus(message, status = '') {
     const statusElement = document.getElementById('data-status');
     statusElement.className = status;
     statusElement.textContent = message;
 }
 
-
-// --- CORRECTION FINALE ---
-// Attend que le HTML soit chargé avant de lancer l'application.
-// C'EST CETTE PARTIE QUI CORRIGE L'ERREUR.
+// Attend que le HTML soit chargé avant de lancer l'application
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
 });
