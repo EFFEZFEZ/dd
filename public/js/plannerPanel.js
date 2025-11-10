@@ -49,7 +49,7 @@ export class PlannerPanel {
                 await google.maps.importLibrary("core");
                 await google.maps.importLibrary("places");
                 this.initAutocomplete();
-                this.setupPlaceChangeListeners(); // NOUVELLE MÉTHODE
+                this.setupPlaceChangeListeners(); // NOUVELLE MÉTHODE DE GESTION DES COORDONNÉES
             } catch (error) {
                 console.error("❌ Erreur lors du chargement des bibliothèques Google Maps", error);
                 this.showError("Impossible de charger le service d'adresses.");
@@ -96,12 +96,14 @@ export class PlannerPanel {
         this.toAutocompleteElement.strictBounds = true;
         this.toAutocompleteElement.componentRestrictions = { country: 'fr' };
 
+        // *** LOGIQUE DE GÉOCODAGE MANUELLE SUPPRIMÉE ICI ***
+
         console.log("✅ Autocomplétion Google Places initialisée.");
     }
     
     /**
      * NOUVELLE MÉTHODE : Écoute l'événement natif de sélection de Place
-     * qui fournit les coordonnées directement.
+     * qui fournit les coordonnées directement et de manière fiable.
      */
     setupPlaceChangeListeners() {
         
@@ -111,7 +113,8 @@ export class PlannerPanel {
             // Si une suggestion valide est sélectionnée (elle a une géométrie)
             if (place && place.geometry && place.geometry.location) {
                 const location = place.geometry.location;
-                const coords = `${location.lat()},${location.lng()}`;
+                // Stocke les coordonnées au format 'lat,lng' que le backend attend
+                const coords = `${location.lat()},${location.lng()}`; 
                 
                 if (isFrom) {
                     this.fromCoords = coords;
@@ -123,7 +126,7 @@ export class PlannerPanel {
                 this.showError(null); // Efface le message d'erreur si présent
                 
             } else {
-                // Cas d'une sélection invalide (rare)
+                // Si l'utilisateur tape quelque chose qui n'est pas une suggestion (et n'a pas validé)
                 console.warn("❌ Place sélectionnée invalide ou sans géométrie.");
                 if (isFrom) {
                     this.fromCoords = null;
@@ -133,15 +136,16 @@ export class PlannerPanel {
             }
         };
 
-        // Événement DÉPART: La source fiable de coordonnées
+        // Événement DÉPART: La source fiable de coordonnées pour la sélection
         this.fromAutocompleteElement.addEventListener('gmp-places-autocomplete:placechange', (e) => updateCoords(e, true));
 
-        // Événement ARRIVÉE: La source fiable de coordonnées
+        // Événement ARRIVÉE: La source fiable de coordonnées pour la sélection
         this.toAutocompleteElement.addEventListener('gmp-places-autocomplete:placechange', (e) => updateCoords(e, false));
         
         // Reset des coordonnées si l'utilisateur vide les champs manuellement
         if (this.fromInput) {
             this.fromInput.addEventListener('input', (e) => {
+                // Si le texte est effacé, on efface aussi les coordonnées stockées
                 if (e.target.value === '') {
                     this.fromCoords = null;
                     console.log("🗑️ Coordonnées DÉPART effacées");
@@ -158,9 +162,6 @@ export class PlannerPanel {
             });
         }
     }
-    // Suppression de la fonction geocodeAddress() et des écouteurs 'change' et 'keypress'
-    // car ils sont désormais gérés par setupPlaceChangeListeners()
-    // ----------------------------------------------------------------------------------
 
     bindEvents() {
         this.departureTab.addEventListener('click', () => {
@@ -185,12 +186,9 @@ export class PlannerPanel {
             console.log("🔍 Recherche d'itinéraire:");
             console.log("  - Départ (fromCoords):", from);
             console.log("  - Arrivée (toCoords):", to);
-            console.log("  - Date:", date);
-            console.log("  - Heure:", time);
 
             if (!from || !to) {
                 console.error("❌ Coordonnées manquantes!");
-                // MODIFIÉ : Afficher un message plus clair pour l'utilisateur
                 this.showError("Veuillez **sélectionner** une adresse dans la liste de suggestions.");
                 return;
             }
@@ -246,7 +244,6 @@ export class PlannerPanel {
     }
 
     groupSteps(steps) {
-        // ... (Logique inchangée pour le regroupement des étapes de marche)
         const groupedSteps = [];
         let currentWalkStep = null;
 
