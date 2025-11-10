@@ -67,11 +67,17 @@ export class PlannerPanel {
         this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5); // ✅ CORRECTION
     }
     
-    initAutocomplete() {
+    async initAutocomplete() {
         if (!this.fromAutocompleteElement || !this.toAutocompleteElement) {
             console.error("❌ Éléments d'autocomplétion introuvables dans le HTML");
             return;
         }
+
+        // ✅ CORRECTION : Attendre que les composants soient complètement initialisés
+        await customElements.whenDefined('gmp-place-autocomplete');
+        
+        // Petit délai supplémentaire pour s'assurer que .input est disponible
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Zone de délimitation de la Dordogne
         const dordogneBounds = new google.maps.LatLngBounds(
@@ -139,16 +145,22 @@ export class PlannerPanel {
         });
 
         // Reset des coordonnées si l'utilisateur efface les champs
-        this.fromAutocompleteElement.input.addEventListener('input', () => {
-            if (this.fromAutocompleteElement.input.value === '') {
-                this.fromCoords = null;
-            }
-        });
-        this.toAutocompleteElement.input.addEventListener('input', () => {
-            if (this.toAutocompleteElement.input.value === '') {
-                this.toCoords = null;
-            }
-        });
+        // ✅ CORRECTION : Vérifier que .input existe avant d'ajouter l'écouteur
+        if (this.fromAutocompleteElement.input) {
+            this.fromAutocompleteElement.input.addEventListener('input', () => {
+                if (this.fromAutocompleteElement.input.value === '') {
+                    this.fromCoords = null;
+                }
+            });
+        }
+        
+        if (this.toAutocompleteElement.input) {
+            this.toAutocompleteElement.input.addEventListener('input', () => {
+                if (this.toAutocompleteElement.input.value === '') {
+                    this.toCoords = null;
+                }
+            });
+        }
 
         console.log("✅ Autocomplétion Google Places initialisée et restreinte à la Dordogne.");
     }
@@ -197,7 +209,10 @@ export class PlannerPanel {
         this.locateButton.addEventListener('click', () => {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
                 .on('locationfound', (e) => {
-                    this.fromAutocompleteElement.input.value = "Ma position"; 
+                    // ✅ CORRECTION : Vérifier que .input existe
+                    if (this.fromAutocompleteElement.input) {
+                        this.fromAutocompleteElement.input.value = "Ma position";
+                    }
                     this.fromCoords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`; 
                 })
                 .on('locationerror', () => {
