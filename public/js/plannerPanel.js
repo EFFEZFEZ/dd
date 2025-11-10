@@ -94,73 +94,139 @@ export class PlannerPanel {
         this.toAutocompleteElement.strictBounds = true;
         this.toAutocompleteElement.componentRestrictions = { country: 'fr' };
 
-        // Écouteur pour le champ DÉPART - Multiple événements pour compatibilité
-        const handleFromPlaceSelect = async (event) => {
-            console.log("🎯 Événement départ détecté:", event.type);
+        // ✅ NOUVELLE APPROCHE : Utiliser un observateur pour détecter les changements
+        const setupPlaceListener = (element, coordsProperty) => {
+            // Observer les changements sur l'élément
+            const observer = new MutationObserver(() => {
+                // Vérifier si un lieu a été sélectionné
+                const inputValue = element.input?.value;
+                if (inputValue && inputValue.trim() !== '') {
+                    console.log(`📝 Valeur détectée dans ${coordsProperty}:`, inputValue);
+                }
+            });
+            
+            // Observer l'élément et ses enfants
+            observer.observe(element, {
+                attributes: true,
+                childList: true,
+                subtree: true
+            });
+        };
+        
+        // Méthode alternative : Polling pour vérifier si un lieu est sélectionné
+        let lastFromValue = '';
+        let lastToValue = '';
+        
+        const checkPlaceSelection = () => {
+            // Vérifier le champ DÉPART
+            if (this.fromAutocompleteElement.input) {
+                const currentFromValue = this.fromAutocompleteElement.input.value;
+                
+                // Si la valeur a changé et qu'elle n'est pas vide
+                if (currentFromValue !== lastFromValue && currentFromValue.trim() !== '') {
+                    lastFromValue = currentFromValue;
+                    
+                    // Essayer d'obtenir le lieu via l'API
+                    const place = this.fromAutocompleteElement.value;
+                    console.log("🔍 Tentative de récupération du lieu DÉPART:", place);
+                    
+                    if (place && place.location) {
+                        this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
+                        console.log("✅ Coordonnées DÉPART capturées:", this.fromCoords);
+                    }
+                }
+            }
+            
+            // Vérifier le champ ARRIVÉE
+            if (this.toAutocompleteElement.input) {
+                const currentToValue = this.toAutocompleteElement.input.value;
+                
+                if (currentToValue !== lastToValue && currentToValue.trim() !== '') {
+                    lastToValue = currentToValue;
+                    
+                    const place = this.toAutocompleteElement.value;
+                    console.log("🔍 Tentative de récupération du lieu ARRIVÉE:", place);
+                    
+                    if (place && place.location) {
+                        this.toCoords = `${place.location.lat()},${place.location.lng()}`;
+                        console.log("✅ Coordonnées ARRIVÉE capturées:", this.toCoords);
+                    }
+                }
+            }
+        };
+        
+        // Vérifier toutes les 500ms
+        setInterval(checkPlaceSelection, 500);
+        
+        // Écouteur pour le champ DÉPART - Essayer tous les événements possibles
+        ['gmp-placeselect', 'place_changed', 'change', 'input'].forEach(eventName => {
+            this.fromAutocompleteElement.addEventListener(eventName, (event) => {
+                console.log(`🎯 Événement DÉPART: ${eventName}`, event);
+                
+                // Essayer différentes façons d'obtenir le lieu
+                const place = event.place || 
+                             event.detail?.place || 
+                             this.fromAutocompleteElement.value ||
+                             this.fromAutocompleteElement.place;
+                
+                console.log("📍 Place DÉPART:", place);
+                
+                if (place && place.location) {
+                    this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
+                    console.log("✅ Départ sauvegardé:", this.fromCoords);
+                } else if (place && typeof place.fetchFields === 'function') {
+                    place.fetchFields({ fields: ['location'] }).then(() => {
+                        if (place.location) {
+                            this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
+                            console.log("✅ Départ sauvegardé (async):", this.fromCoords);
+                        }
+                    });
+                }
+            });
+        });
+        
+        // Écouteur pour le champ ARRIVÉE - Multiple événements pour compatibilité
+        const handleToPlaceSelect = async (event) => {
+            console.log("🎯 Événement arrivée détecté:", event.type);
             
             // Essayer d'obtenir le lieu depuis différentes sources
-            let place = event.place || event.detail?.place || this.fromAutocompleteElement.place;
+            let place = event.place || event.detail?.place || this.toAutocompleteElement.place;
             
             console.log("📍 Place objet:", place);
-            
+
             if (!place) {
                 console.warn("⚠️ Aucun lieu trouvé dans l'événement");
-                this.fromCoords = null;
+                this.toCoords = null;
                 return;
             }
 
             try {
                 // Vérifier si on a déjà la location
                 if (place.location) {
-                    this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
-                    console.log("✅ Départ sauvegardé (direct):", this.fromCoords);
+                    this.toCoords = `${place.location.lat()},${place.location.lng()}`;
+                    console.log("✅ Arrivée sauvegardée (direct):", this.toCoords);
                 } else {
                     // Sinon, récupérer les détails
                     await place.fetchFields({ fields: ['location', 'displayName', 'formattedAddress'] });
                     
                     if (place.location) {
-                        this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
-                        console.log("✅ Départ sauvegardé (après fetch):", this.fromCoords);
+                        this.toCoords = `${place.location.lat()},${place.location.lng()}`;
+                        console.log("✅ Arrivée sauvegardée (après fetch):", this.toCoords);
                     } else {
                         console.error("❌ Pas de location trouvée après fetch");
-                        this.fromCoords = null;
+                        this.toCoords = null;
                     }
                 }
             } catch (error) {
-                console.error("❌ Erreur lors de la récupération du lieu de départ:", error);
-                this.fromCoords = null;
+                console.error("❌ Erreur lors de la récupération du lieu d'arrivée:", error);
+                this.toCoords = null;
             }
         };
         
         // Écouter plusieurs événements possibles
-        this.fromAutocompleteElement.addEventListener('gmp-placeselect', handleFromPlaceSelect);
-        this.fromAutocompleteElement.addEventListener('place_changed', handleFromPlaceSelect);
-        this.fromAutocompleteElement.addEventListener('gmpplaceselect', handleFromPlaceSelect);
-        
-        // Écouteur pour le champ ARRIVÉE
-        this.toAutocompleteElement.addEventListener('gmp-placeselect', async (event) => {
-            const place = event.place;
-
-            if (!place) {
-                this.toCoords = null;
-                return;
-            }
-
-            try {
-                // Récupérer les détails du lieu
-                await place.fetchFields({ fields: ['location', 'displayName'] });
-                
-                if (place.location) {
-                    this.toCoords = `${place.location.lat()},${place.location.lng()}`;
-                    console.log("✅ Arrivée sélectionnée:", place.displayName, this.toCoords);
-                } else {
-                    this.toCoords = null;
-                }
-            } catch (error) {
-                console.error("Erreur lors de la récupération du lieu d'arrivée:", error);
-                this.toCoords = null;
-            }
-        });
+        this.toAutocompleteElement.addEventListener('gmp-placeselect', handleToPlaceSelect);
+        this.toAutocompleteElement.addEventListener('place_changed', handleToPlaceSelect);
+        this.toAutocompleteElement.addEventListener('gmpplaceselect', handleToPlaceSelect);
 
         // Reset des coordonnées si l'utilisateur efface les champs
         // ✅ CORRECTION : Vérifier que .input existe avant d'ajouter l'écouteur
