@@ -79,6 +79,9 @@ export class PlannerPanel {
         // Petit délai supplémentaire pour s'assurer que .input est disponible
         await new Promise(resolve => setTimeout(resolve, 100));
 
+        // Initialiser le Geocoder pour convertir adresses → coordonnées
+        this.geocoder = new google.maps.Geocoder();
+
         // Zone de délimitation de la Dordogne
         const dordogneBounds = new google.maps.LatLngBounds(
             { lat: 44.53, lng: -0.13 },
@@ -94,159 +97,117 @@ export class PlannerPanel {
         this.toAutocompleteElement.strictBounds = true;
         this.toAutocompleteElement.componentRestrictions = { country: 'fr' };
 
-        // ✅ NOUVELLE APPROCHE : Utiliser un observateur pour détecter les changements
-        const setupPlaceListener = (element, coordsProperty) => {
-            // Observer les changements sur l'élément
-            const observer = new MutationObserver(() => {
-                // Vérifier si un lieu a été sélectionné
-                const inputValue = element.input?.value;
-                if (inputValue && inputValue.trim() !== '') {
-                    console.log(`📝 Valeur détectée dans ${coordsProperty}:`, inputValue);
-                }
-            });
+        // ✅ SOLUTION : Géocoder l'adresse quand l'utilisateur appuie sur Entrée ou clique sur une suggestion
+        
+        // Fonction pour géocoder une adresse
+        const geocodeAddress = async (address, isFrom = true) => {
+            console.log(`🌍 Géocodage de "${address}"...`);
             
-            // Observer l'élément et ses enfants
-            observer.observe(element, {
-                attributes: true,
-                childList: true,
-                subtree: true
-            });
-        };
-        
-        // Méthode alternative : Polling pour vérifier si un lieu est sélectionné
-        let lastFromValue = '';
-        let lastToValue = '';
-        
-        const checkPlaceSelection = () => {
-            // Vérifier le champ DÉPART
-            if (this.fromAutocompleteElement.input) {
-                const currentFromValue = this.fromAutocompleteElement.input.value;
-                
-                // Si la valeur a changé et qu'elle n'est pas vide
-                if (currentFromValue !== lastFromValue && currentFromValue.trim() !== '') {
-                    lastFromValue = currentFromValue;
-                    
-                    // Essayer d'obtenir le lieu via l'API
-                    const place = this.fromAutocompleteElement.value;
-                    console.log("🔍 Tentative de récupération du lieu DÉPART:", place);
-                    
-                    if (place && place.location) {
-                        this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
-                        console.log("✅ Coordonnées DÉPART capturées:", this.fromCoords);
-                    }
-                }
-            }
-            
-            // Vérifier le champ ARRIVÉE
-            if (this.toAutocompleteElement.input) {
-                const currentToValue = this.toAutocompleteElement.input.value;
-                
-                if (currentToValue !== lastToValue && currentToValue.trim() !== '') {
-                    lastToValue = currentToValue;
-                    
-                    const place = this.toAutocompleteElement.value;
-                    console.log("🔍 Tentative de récupération du lieu ARRIVÉE:", place);
-                    
-                    if (place && place.location) {
-                        this.toCoords = `${place.location.lat()},${place.location.lng()}`;
-                        console.log("✅ Coordonnées ARRIVÉE capturées:", this.toCoords);
-                    }
-                }
-            }
-        };
-        
-        // Vérifier toutes les 500ms
-        setInterval(checkPlaceSelection, 500);
-        
-        // Écouteur pour le champ DÉPART - Essayer tous les événements possibles
-        ['gmp-placeselect', 'place_changed', 'change', 'input'].forEach(eventName => {
-            this.fromAutocompleteElement.addEventListener(eventName, (event) => {
-                console.log(`🎯 Événement DÉPART: ${eventName}`, event);
-                
-                // Essayer différentes façons d'obtenir le lieu
-                const place = event.place || 
-                             event.detail?.place || 
-                             this.fromAutocompleteElement.value ||
-                             this.fromAutocompleteElement.place;
-                
-                console.log("📍 Place DÉPART:", place);
-                
-                if (place && place.location) {
-                    this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
-                    console.log("✅ Départ sauvegardé:", this.fromCoords);
-                } else if (place && typeof place.fetchFields === 'function') {
-                    place.fetchFields({ fields: ['location'] }).then(() => {
-                        if (place.location) {
-                            this.fromCoords = `${place.location.lat()},${place.location.lng()}`;
-                            console.log("✅ Départ sauvegardé (async):", this.fromCoords);
-                        }
-                    });
-                }
-            });
-        });
-        
-        // Écouteur pour le champ ARRIVÉE - Multiple événements pour compatibilité
-        const handleToPlaceSelect = async (event) => {
-            console.log("🎯 Événement arrivée détecté:", event.type);
-            
-            // Essayer d'obtenir le lieu depuis différentes sources
-            let place = event.place || event.detail?.place || this.toAutocompleteElement.place;
-            
-            console.log("📍 Place objet:", place);
-
-            if (!place) {
-                console.warn("⚠️ Aucun lieu trouvé dans l'événement");
-                this.toCoords = null;
-                return;
-            }
-
             try {
-                // Vérifier si on a déjà la location
-                if (place.location) {
-                    this.toCoords = `${place.location.lat()},${place.location.lng()}`;
-                    console.log("✅ Arrivée sauvegardée (direct):", this.toCoords);
-                } else {
-                    // Sinon, récupérer les détails
-                    await place.fetchFields({ fields: ['location', 'displayName', 'formattedAddress'] });
+                const result = await this.geocoder.geocode({ 
+                    address: address,
+                    componentRestrictions: { country: 'FR' },
+                    bounds: new google.maps.LatLngBounds(
+                        { lat: 44.53, lng: -0.13 },
+                        { lat: 45.75, lng: 1.50 }
+                    )
+                });
+                
+                if (result.results && result.results.length > 0) {
+                    const location = result.results[0].geometry.location;
+                    const coords = `${location.lat()},${location.lng()}`;
                     
-                    if (place.location) {
-                        this.toCoords = `${place.location.lat()},${place.location.lng()}`;
-                        console.log("✅ Arrivée sauvegardée (après fetch):", this.toCoords);
+                    if (isFrom) {
+                        this.fromCoords = coords;
+                        console.log("✅ Coordonnées DÉPART:", coords);
                     } else {
-                        console.error("❌ Pas de location trouvée après fetch");
-                        this.toCoords = null;
+                        this.toCoords = coords;
+                        console.log("✅ Coordonnées ARRIVÉE:", coords);
                     }
+                    
+                    return coords;
+                } else {
+                    console.error("❌ Aucun résultat trouvé pour:", address);
+                    return null;
                 }
             } catch (error) {
-                console.error("❌ Erreur lors de la récupération du lieu d'arrivée:", error);
-                this.toCoords = null;
+                console.error("❌ Erreur de géocodage:", error);
+                return null;
             }
         };
         
-        // Écouter plusieurs événements possibles
-        this.toAutocompleteElement.addEventListener('gmp-placeselect', handleToPlaceSelect);
-        this.toAutocompleteElement.addEventListener('place_changed', handleToPlaceSelect);
-        this.toAutocompleteElement.addEventListener('gmpplaceselect', handleToPlaceSelect);
-
-        // Reset des coordonnées si l'utilisateur efface les champs
-        // ✅ CORRECTION : Vérifier que .input existe avant d'ajouter l'écouteur
+        // Écouteurs pour le champ DÉPART
+        let fromDebounceTimer;
+        
         if (this.fromAutocompleteElement.input) {
-            this.fromAutocompleteElement.input.addEventListener('input', () => {
-                if (this.fromAutocompleteElement.input.value === '') {
+            // Quand l'utilisateur tape ou sélectionne
+            this.fromAutocompleteElement.input.addEventListener('change', async (e) => {
+                const address = e.target.value;
+                if (address && address.trim().length > 3) {
+                    clearTimeout(fromDebounceTimer);
+                    fromDebounceTimer = setTimeout(async () => {
+                        await geocodeAddress(address, true);
+                    }, 500);
+                }
+            });
+            
+            // Quand l'utilisateur appuie sur Entrée
+            this.fromAutocompleteElement.input.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    const address = e.target.value;
+                    if (address && address.trim().length > 3) {
+                        await geocodeAddress(address, true);
+                    }
+                }
+            });
+        }
+        
+        // Écouteurs pour le champ ARRIVÉE
+        let toDebounceTimer;
+        
+        if (this.toAutocompleteElement.input) {
+            // Quand l'utilisateur tape ou sélectionne
+            this.toAutocompleteElement.input.addEventListener('change', async (e) => {
+                const address = e.target.value;
+                if (address && address.trim().length > 3) {
+                    clearTimeout(toDebounceTimer);
+                    toDebounceTimer = setTimeout(async () => {
+                        await geocodeAddress(address, false);
+                    }, 500);
+                }
+            });
+            
+            // Quand l'utilisateur appuie sur Entrée
+            this.toAutocompleteElement.input.addEventListener('keypress', async (e) => {
+                if (e.key === 'Enter') {
+                    const address = e.target.value;
+                    if (address && address.trim().length > 3) {
+                        await geocodeAddress(address, false);
+                    }
+                }
+            });
+        }
+        
+        // Reset des coordonnées si l'utilisateur efface les champs
+        if (this.fromAutocompleteElement.input) {
+            this.fromAutocompleteElement.input.addEventListener('input', (e) => {
+                if (e.target.value === '') {
                     this.fromCoords = null;
+                    console.log("🗑️ Coordonnées DÉPART effacées");
                 }
             });
         }
         
         if (this.toAutocompleteElement.input) {
-            this.toAutocompleteElement.input.addEventListener('input', () => {
-                if (this.toAutocompleteElement.input.value === '') {
+            this.toAutocompleteElement.input.addEventListener('input', (e) => {
+                if (e.target.value === '') {
                     this.toCoords = null;
+                    console.log("🗑️ Coordonnées ARRIVÉE effacées");
                 }
             });
         }
 
-        console.log("✅ Autocomplétion Google Places initialisée et restreinte à la Dordogne.");
+        console.log("✅ Autocomplétion Google Places initialisée avec Geocoding.");
     }
 
     bindEvents() {
