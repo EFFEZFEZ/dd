@@ -1,6 +1,6 @@
 /**
  * Fichier : /js/plannerPanel.js
- * VERSION CORRIGÉE - Utilisation directe des coordonnées de l'objet Place
+ * VERSION OPTIMISÉE POUR WEB COMPONENTS (gmp-place-autocomplete)
  */
 
 export class PlannerPanel {
@@ -8,13 +8,13 @@ export class PlannerPanel {
         this.panel = document.getElementById(panelId);
         this.dataManager = dataManager;
         this.mapRenderer = mapRenderer;
-        this.searchCallback = searchCallback; 
+        this.searchCallback = searchCallback;
 
         // Récupération des Web Components
         this.fromAutocompleteElement = document.getElementById('planner-from-autocomplete');
         this.toAutocompleteElement = document.getElementById('planner-to-autocomplete');
-        
-        // Récupération des inputs natifs (pour lecture/écriture de la valeur)
+
+        // Récupération des inputs natifs pour lecture/écriture de la valeur
         this.fromInput = document.getElementById('planner-from');
         this.toInput = document.getElementById('planner-to');
 
@@ -24,32 +24,31 @@ export class PlannerPanel {
 
         this.summaryContainer = document.getElementById('itinerary-summary-container');
         this.stepsContainer = document.getElementById('itinerary-steps-container');
-
+        
+        // Nouveaux éléments pour l'heure/date (à ajouter dans l'HTML)
         this.departureTab = document.getElementById('planner-mode-departure');
         this.arrivalTab = document.getElementById('planner-mode-arrival');
         this.dateInput = document.getElementById('planner-date');
         this.timeInput = document.getElementById('planner-time');
         this.timeMode = 'DEPARTURE'; 
-
-        this.fromCoords = null; // Stocke les coordonnées "lat,lng" du départ
-        this.toCoords = null;   // Stocke les coordonnées "lat,lng" de l'arrivée
-        this.currentRoutes = []; 
+        
+        this.fromCoords = null; 
+        this.toCoords = null;
+        this.currentRoutes = [];
 
         this.setDefaultDateTime();
         this.bindEvents();
         this.waitForGoogleMaps();
     }
     
+    // --- Initialisation des APIs ---
+    
     waitForGoogleMaps() {
         const init = async () => {
             console.log("✅ Google Maps chargé, initialisation de l'autocomplétion");
-            
             try {
-                // Assurez-vous que les bibliothèques Places sont chargées
-                await google.maps.importLibrary("core");
-                await google.maps.importLibrary("places");
-                this.initAutocomplete();
-                this.setupPlaceChangeListeners(); // NOUVELLE MÉTHODE DE GESTION DES COORDONNÉES
+                await customElements.whenDefined('gmp-place-autocomplete'); // Attente du Web Component
+                this.setupPlaceChangeListeners(); // Capture des coordonnées
             } catch (error) {
                 console.error("❌ Erreur lors du chargement des bibliothèques Google Maps", error);
                 this.showError("Impossible de charger le service d'adresses.");
@@ -59,7 +58,6 @@ export class PlannerPanel {
         if (window.googleMapsReady) {
             init();
         } else {
-            console.log("⏳ Attente du chargement de Google Maps...");
             window.addEventListener('google-maps-ready', init, { once: true });
         }
     }
@@ -67,54 +65,21 @@ export class PlannerPanel {
     setDefaultDateTime() {
         const now = new Date();
         const localNow = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
-        this.dateInput.value = localNow.toISOString().split('T')[0]; 
+        this.dateInput.value = localNow.toISOString().split('T')[0];
         this.timeInput.value = localNow.toTimeString().split(' ')[0].substring(0, 5);
     }
     
-    async initAutocomplete() {
-        if (!this.fromAutocompleteElement || !this.toAutocompleteElement) {
-            console.error("❌ Éléments d'autocomplétion introuvables dans le HTML");
-            return;
-        }
-
-        // Attendre que les composants soient complètement initialisés
-        await customElements.whenDefined('gmp-place-autocomplete');
-        await new Promise(resolve => setTimeout(resolve, 100)); // Petit délai de sécurité
-
-        // Zone de délimitation de la Dordogne (déjà définie dans le HTML via location-bias)
-        const dordogneBounds = new google.maps.LatLngBounds(
-            { lat: 44.53, lng: -0.13 },
-            { lat: 45.75, lng: 1.50 }
-        );
-
-        // Mise à jour des propriétés (si non fait dans le HTML)
-        this.fromAutocompleteElement.locationRestriction = dordogneBounds;
-        this.fromAutocompleteElement.strictBounds = true;
-        this.fromAutocompleteElement.componentRestrictions = { country: 'fr' };
-        
-        this.toAutocompleteElement.locationRestriction = dordogneBounds;
-        this.toAutocompleteElement.strictBounds = true;
-        this.toAutocompleteElement.componentRestrictions = { country: 'fr' };
-
-        // *** LOGIQUE DE GÉOCODAGE MANUELLE SUPPRIMÉE ICI ***
-
-        console.log("✅ Autocomplétion Google Places initialisée.");
-    }
-    
     /**
-     * NOUVELLE MÉTHODE : Écoute l'événement natif de sélection de Place
-     * qui fournit les coordonnées directement et de manière fiable.
+     * NOUVEAU : Capture l'événement de sélection du Web Component et stocke les coordonnées.
      */
     setupPlaceChangeListeners() {
         
         const updateCoords = (event, isFrom) => {
             const place = event.detail.place;
             
-            // Si une suggestion valide est sélectionnée (elle a une géométrie)
             if (place && place.geometry && place.geometry.location) {
                 const location = place.geometry.location;
-                // Stocke les coordonnées au format 'lat,lng' que le backend attend
-                const coords = `${location.lat()},${location.lng()}`; 
+                const coords = `${location.lat()},${location.lng()}`;
                 
                 if (isFrom) {
                     this.fromCoords = coords;
@@ -123,10 +88,9 @@ export class PlannerPanel {
                     this.toCoords = coords;
                     console.log("✅ Coords ARRIVÉE via Placechange:", coords);
                 }
-                this.showError(null); // Efface le message d'erreur si présent
+                this.showError(null);
                 
             } else {
-                // Si l'utilisateur tape quelque chose qui n'est pas une suggestion (et n'a pas validé)
                 console.warn("❌ Place sélectionnée invalide ou sans géométrie.");
                 if (isFrom) {
                     this.fromCoords = null;
@@ -145,10 +109,8 @@ export class PlannerPanel {
         // Reset des coordonnées si l'utilisateur vide les champs manuellement
         if (this.fromInput) {
             this.fromInput.addEventListener('input', (e) => {
-                // Si le texte est effacé, on efface aussi les coordonnées stockées
                 if (e.target.value === '') {
                     this.fromCoords = null;
-                    console.log("🗑️ Coordonnées DÉPART effacées");
                 }
             });
         }
@@ -157,13 +119,14 @@ export class PlannerPanel {
             this.toInput.addEventListener('input', (e) => {
                 if (e.target.value === '') {
                     this.toCoords = null;
-                    console.log("🗑️ Coordonnées ARRIVÉE effacées");
                 }
             });
         }
     }
-
+    // --- Fin de la gestion des APIs ---
+    
     bindEvents() {
+        // Logique des tabs Départ/Arrivée
         this.departureTab.addEventListener('click', () => {
             this.timeMode = 'DEPARTURE';
             this.departureTab.classList.add('active');
@@ -177,15 +140,11 @@ export class PlannerPanel {
         });
 
         this.searchButton.addEventListener('click', () => {
-            const from = this.fromCoords;
+            const from = this.fromCoords; // Utilise uniquement les coordonnées capturées
             const to = this.toCoords;
             const timeMode = this.timeMode;
             const date = this.dateInput.value;
             const time = this.timeInput.value;
-
-            console.log("🔍 Recherche d'itinéraire:");
-            console.log("  - Départ (fromCoords):", from);
-            console.log("  - Arrivée (toCoords):", to);
 
             if (!from || !to) {
                 console.error("❌ Coordonnées manquantes!");
@@ -197,7 +156,6 @@ export class PlannerPanel {
                 return;
             }
             
-            // L'API Google Directions attend une date/heure au format RFC3339 (ISO 8601)
             const isoDateTime = `${date}T${time}:00Z`;
             const options = {
                 fromPlace: from,
@@ -206,7 +164,6 @@ export class PlannerPanel {
                 dateTime: isoDateTime
             };
             
-            console.log("✅ Options envoyées:", options);
             this.showLoading("Calcul de l'itinéraire...");
             this.searchCallback(options); 
         });
@@ -214,12 +171,10 @@ export class PlannerPanel {
         this.locateButton.addEventListener('click', () => {
             this.mapRenderer.map.locate({ setView: true, maxZoom: 16 })
                 .on('locationfound', (e) => {
-                    // CORRIGÉ : Mise à jour de l'input natif et de la variable interne
                     if (this.fromInput) {
                         this.fromInput.value = "Ma position actuelle";
                     }
                     this.fromCoords = `${e.latlng.lat.toFixed(5)},${e.latlng.lng.toFixed(5)}`;
-                    console.log("✅ Position actuelle capturée:", this.fromCoords);
                 })
                 .on('locationerror', () => {
                     alert("Impossible de vous localiser. Vérifiez les permissions de votre navigateur.");
@@ -227,6 +182,8 @@ export class PlannerPanel {
         });
     }
     
+    // --- Logique d'affichage (Inchangée) ---
+
     showLoading(message = "Recherche en cours...") {
         this.loadingSpinner.querySelector('p').textContent = message;
         this.loadingSpinner.classList.remove('hidden');
@@ -241,6 +198,7 @@ export class PlannerPanel {
     showError(message) {
         this.hideLoading();
         this.summaryContainer.innerHTML = message ? `<p style="color: #dc2626; padding: 0 1.5rem;">${message}</p>` : '';
+        this.stepsContainer.innerHTML = '';
     }
 
     groupSteps(steps) {
@@ -259,7 +217,6 @@ export class PlannerPanel {
                         staticDuration: "0s"
                     };
                 }
-                // Assurez-vous que staticDuration est un nombre avant l'opération
                 const currentDurationSeconds = parseInt(currentWalkStep.staticDuration.slice(0, -1)) || 0;
                 const stepDurationSeconds = parseInt(step.staticDuration.slice(0, -1) || 0);
 
